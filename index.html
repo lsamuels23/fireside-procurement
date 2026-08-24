@@ -252,15 +252,16 @@
   .dep-full-check input[type=checkbox] { width: 13px; height: 13px; cursor: pointer; accent-color: var(--accent); flex-shrink: 0; }
   /* Release-to-order filter toggle */
   .flt-check {
-    display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;
-    margin-top: 6px; margin-bottom: 0; font-size: 11.5px; font-weight: 600;
-    color: var(--muted); text-transform: none; letter-spacing: 0; white-space: nowrap;
+    display: flex; align-items: center; gap: 7px; cursor: pointer; user-select: none;
+    padding: 8px 12px; border: 1px solid var(--line); border-radius: 7px;
+    background: #fff; font-size: 13px; font-weight: 600; color: var(--text);
+    text-transform: none; letter-spacing: 0; margin-bottom: 0; white-space: nowrap;
   }
   .flt-check input[type=checkbox] {
-    width: 14px; height: 14px; cursor: pointer;
+    width: 15px; height: 15px; cursor: pointer;
     accent-color: var(--released); flex-shrink: 0;
   }
-  .flt-check.on { color: var(--released); }
+  .flt-check.on { border-color: var(--released); background: var(--released-bg); color: var(--released); }
 
   input:disabled { background: #f1f3f5 !important; color: #c0c5cc !important; cursor: not-allowed; opacity: 0.6; border-color: #dde1e7 !important; }
 
@@ -422,14 +423,18 @@
             <option value="all">All statuses</option>
             <option value="Quoting">Quoting</option>
             <option value="Quote Approved">Quote Approved</option>
+            <option value="Released">Released</option>
             <option value="Ordered">Ordered</option>
             <option value="Shipped">Shipped</option>
             <option value="Delivered">Delivered</option>
             <option value="Pending">Pending / TBD</option>
           </select>
+        </div>
+        <div class="field">
+          <label>Release to Order</label>
           <label class="flt-check" id="filterReleasedLabel"
-                 title="Show only items released to order. Works alongside the Status dropdown.">
-            <input type="checkbox" id="filterReleased" onchange="render()"> Released to Order
+                 title="Every item that has been released to order, including ones already Ordered, Shipped or Delivered. The Released status is narrower: released but not yet ordered.">
+            <input type="checkbox" id="filterReleased" onchange="render()"> Released only
           </label>
         </div>
         <div class="field">
@@ -2567,12 +2572,15 @@ function getFilteredList(){
     list: items.filter(item=>{
       const itemProjects = (item.unit||item.project||'').split(',').map(p=>p.trim());
       if(fProject && !itemProjects.includes(fProject)) return false;
-      if(fStatus === 'Quoting'        && item.status !== 'Quoting') return false;
-      if(fStatus === 'Quote Approved' && item.status !== 'Quote Approved') return false;
-      if(fStatus === 'Ordered'        && item.status !== 'Ordered') return false;
-      if(fStatus === 'Shipped'        && item.status !== 'Shipped') return false;
-      if(fStatus === 'Delivered'      && item.status !== 'Delivered') return false;
-      if(fStatus === 'Pending'        && (item.status || item.released)) return false;
+      // Match the Status dropdown against the status shown on the row (statusKey), so a
+      // released item reads as 'Released' here exactly as its pill does in the table.
+      // 'Pending / TBD' means no status at all. Release to Order is a separate axis: that
+      // checkbox matches item.released even after the item moves on to Ordered/Shipped/Delivered.
+      if(fStatus && fStatus !== 'all'){
+        const sk = statusKey(item);
+        if(fStatus === 'Pending'){ if(sk) return false; }
+        else if(sk !== fStatus) return false;
+      }
       const rk = returnKey(item);
       if(fReturn === 'any'  && !rk) return false;
       if(fReturn === 'none' &&  rk) return false;
