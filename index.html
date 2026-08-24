@@ -779,6 +779,23 @@ Quote Approved: Aug 7, 2026 12:47 PM">Aug 7, 2026 12:47 PM</span></td>
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* ─── SUPABASE CONFIG ──────────────────────────────────────────────
+   Paste the two values from your Supabase project:
+     Dashboard → Project Settings → API
+   The "anon" key is designed to be public and is safe in client code.
+   Leave these blank and the page falls back to browser-only storage.
+   ───────────────────────────────────────────────────────────────── */
+const SUPABASE_URL      = "";   // e.g. https://abcdefgh.supabase.co
+const SUPABASE_ANON_KEY = "";   // the long "anon / public" key
+const TABLE             = "procurement_items";
+
+const sb = (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase)
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+</script>
+
 <script>
 const KEY = "procTracker_v2";
 
@@ -1891,16 +1908,10 @@ const SEED = [
 /* SEED_END */
 
 // ── State ─────────────────────────────────────────────────────────
-let items = load();
+let items = [];
 
-function load(){
-  // Prefer localStorage (session edits) over SEED, but fall back to SEED
-  let data;
-  try {
-    const stored = JSON.parse(localStorage.getItem(KEY));
-    if (stored && Array.isArray(stored) && stored.length >= SEED.length) data = stored;
-  } catch(e){}
-  if(!data) data = JSON.parse(JSON.stringify(SEED));
+// Migrations/backfills the rest of the app depends on. Every load path runs this.
+function normalize(data){
   // Migration: if deposit exists and no full amount, treat deposit as full amount
   data.forEach(x => { if(x.depositAmt != null && x.totalAmt == null) x.totalAmt = x.depositAmt; });
   // Backfill: recover a recorded "changed to Ordered" date where present, then compute
@@ -1914,7 +1925,86 @@ function load(){
   });
   return data;
 }
-function save(){ try{ localStorage.setItem(KEY, JSON.stringify(items)); }catch(e){} }
+
+// Local cache — keeps the page usable when Supabase is unreachable or unconfigured.
+function loadLocal(){
+  let data;
+  try {
+    const stored = JSON.parse(localStorage.getItem(KEY));
+    if (stored && Array.isArray(stored) && stored.length) data = stored;
+  } catch(e){}
+  if(!data) data = JSON.parse(JSON.stringify(SEED));
+  return normalize(data);
+}
+
+// Pull the shared list. Bootstraps the table from SEED the first time it's empty.
+async function cloudLoad(){
+  if(!sb) return loadLocal();
+  const { data, error } = await sb.from(TABLE).select('id,data');
+  if(error){ setSync('offline', error.message); return loadLocal(); }
+  if(!data.length){
+    const seeded = normalize(JSON.parse(JSON.stringify(SEED)));
+    await cloudSync(seeded);
+    return seeded;
+  }
+  return normalize(data.map(r => r.data));
+}
+
+let syncTimer = null, selfWriteUntil = 0;
+
+// Optimistic: cache locally right away, push to Supabase on a short debounce.
+function save(){
+  try{ localStorage.setItem(KEY, JSON.stringify(items)); }catch(e){}
+  if(!sb) return;
+  setSync('saving');
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(()=>{ cloudSync(items); }, 400);
+}
+
+// Whole-list sync: upsert everything present, drop rows that were deleted locally.
+async function cloudSync(list){
+  if(!sb) return;
+  selfWriteUntil = Date.now() + 3000;   // ignore the realtime echo of our own write
+  const stamp = new Date().toISOString();
+  const rows = list.map(x => ({ id: x.id, data: x, updated_at: stamp }));
+  if(rows.length){
+    const up = await sb.from(TABLE).upsert(rows, { onConflict: 'id' });
+    if(up.error){ setSync('offline', up.error.message); return; }
+  }
+  const ids = list.map(x => x.id);
+  const del = ids.length
+    ? await sb.from(TABLE).delete().not('id','in','("' + ids.join('","') + '")')
+    : await sb.from(TABLE).delete().neq('id','');
+  if(del.error){ setSync('offline', del.error.message); return; }
+  setSync('ok');
+}
+
+// Small floating sync indicator (built in JS so the markup stays untouched).
+function setSync(state, msg){
+  let el = document.getElementById('syncBadge');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'syncBadge';
+    el.style.cssText = 'position:fixed;right:14px;bottom:14px;z-index:9999;'
+      + 'font:600 12px/1 "Segoe UI",system-ui,Arial,sans-serif;padding:8px 12px;'
+      + 'border-radius:20px;box-shadow:0 2px 8px rgba(0,0,0,.15);transition:opacity .3s;';
+    document.body.appendChild(el);
+  }
+  const map = {
+    saving : ['Saving…',              '#fef3e2', '#b45309'],
+    ok     : ['Synced',               '#e6f5ec', '#1a8a4a'],
+    live   : ['Updated',              '#e3eeff', '#1565c0'],
+    offline: ['Offline — local only', '#fdecea', '#c0392b']
+  };
+  const [text, bg, fg] = map[state] || map.ok;
+  el.textContent = text;
+  el.style.background = bg;
+  el.style.color = fg;
+  el.title = msg || '';
+  el.style.opacity = '1';
+  clearTimeout(el._t);
+  if(state === 'ok' || state === 'live') el._t = setTimeout(()=>{ el.style.opacity = '0'; }, 1800);
+}
 
 // ── Deposit = Full Amount toggle ──────────────────────────────────
 function toggleDepositFull(){
@@ -2830,7 +2920,27 @@ document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeEdit(); });
   document.getElementById(id).addEventListener('keydown', e=>{ if(e.key==='Enter') addItem(); });
 });
 
-render();
+// ── Boot ──────────────────────────────────────────────────────────
+async function boot(){
+  items = await cloudLoad();
+  render();
+  if(!sb){
+    setSync('offline', 'Supabase not configured — edits stay in this browser only');
+    return;
+  }
+  setSync('ok');
+  // Live updates from anyone else with the link.
+  sb.channel('procurement')
+    .on('postgres_changes', { event:'*', schema:'public', table: TABLE }, async ()=>{
+      if(Date.now() < selfWriteUntil) return;                                     // our own write
+      if(document.getElementById('editModal').classList.contains('open')) return; // don't yank an open form
+      items = await cloudLoad();
+      render();
+      setSync('live');
+    })
+    .subscribe();
+}
+boot();
 </script>
 
 
