@@ -250,6 +250,19 @@
   .release-toggle input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--released); cursor: pointer; flex-shrink: 0; }
   .dep-full-check { display: flex; align-items: center; gap: 5px; margin-top: 5px; font-size: 11.5px; color: var(--muted); cursor: pointer; font-weight: 400; text-transform: none; letter-spacing: 0; white-space: nowrap; }
   .dep-full-check input[type=checkbox] { width: 13px; height: 13px; cursor: pointer; accent-color: var(--accent); flex-shrink: 0; }
+  /* Release-to-order filter toggle */
+  .flt-check {
+    display: flex; align-items: center; gap: 7px; cursor: pointer; user-select: none;
+    padding: 8px 12px; border: 1px solid var(--line); border-radius: 7px;
+    background: #fff; font-size: 13px; font-weight: 600; color: var(--text);
+    text-transform: none; letter-spacing: 0; margin-bottom: 0; white-space: nowrap;
+  }
+  .flt-check input[type=checkbox] {
+    width: 15px; height: 15px; cursor: pointer;
+    accent-color: var(--released); flex-shrink: 0;
+  }
+  .flt-check.on { border-color: var(--released); background: var(--released-bg); color: var(--released); }
+
   input:disabled { background: #f1f3f5 !important; color: #c0c5cc !important; cursor: not-allowed; opacity: 0.6; border-color: #dde1e7 !important; }
 
   /* STATUS HISTORY EDITOR */
@@ -416,6 +429,13 @@
             <option value="Delivered">Delivered</option>
             <option value="Pending">Pending / TBD</option>
           </select>
+        </div>
+        <div class="field">
+          <label>Release to Order</label>
+          <label class="flt-check" id="filterReleasedLabel"
+                 title="Show only items that have been released to order. Combines with the other filters.">
+            <input type="checkbox" id="filterReleased" onchange="render()"> Released only
+          </label>
         </div>
         <div class="field">
           <label>Returns</label>
@@ -2272,6 +2292,7 @@ function clearFilters(){
   document.getElementById('filterReturn').value  = 'all';
   document.getElementById('filterVendor').value  = '';
   document.getElementById('filterSearch').value  = '';
+  document.getElementById('filterReleased').checked = false;
   render();
 }
 
@@ -2546,6 +2567,7 @@ function getFilteredList(){
   const fReturn  = document.getElementById('filterReturn').value;
   const fVendor  = document.getElementById('filterVendor').value;
   const fSearch  = document.getElementById('filterSearch').value.toLowerCase().trim();
+  const fReleased = document.getElementById('filterReleased').checked;
   return {
     list: items.filter(item=>{
       const itemProjects = (item.unit||item.project||'').split(',').map(p=>p.trim());
@@ -2562,6 +2584,7 @@ function getFilteredList(){
       if(fReturn === 'any'  && !rk) return false;
       if(fReturn === 'none' &&  rk) return false;
       if(fReturn && !['all','any','none'].includes(fReturn) && rk !== fReturn) return false;
+      if(fReleased && !item.released) return false;
       if(fVendor && item.vendor !== fVendor) return false;
       if(fSearch){
         const hay = [item.unit,item.project,item.itemName,item.category,item.vendor,item.contact,item.notes].filter(Boolean).join(' ').toLowerCase();
@@ -2569,7 +2592,7 @@ function getFilteredList(){
       }
       return true;
     }),
-    fProject, fStatus, fVendor, fSearch, fReturn
+    fProject, fStatus, fVendor, fSearch, fReturn, fReleased
   };
 }
 
@@ -2600,7 +2623,8 @@ function render(){
     vendors.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
   fv.value = cv; // explicitly restore
 
-  const { list, fProject, fStatus, fVendor, fSearch, fReturn } = getFilteredList();
+  const { list, fProject, fStatus, fVendor, fSearch, fReturn, fReleased } = getFilteredList();
+  document.getElementById('filterReleasedLabel').classList.toggle('on', fReleased);
 
   const rows = document.getElementById('rows');
   rows.innerHTML = list.map(item=>{
@@ -2707,7 +2731,7 @@ function render(){
   const depsOutCount    = list.filter(x => !['Ordered','Shipped','Delivered'].includes(x.status) && x.depositAmt != null).length;
   const outstanding     = totalValue - totalPaid;
   const orderedCount    = list.filter(x => ['Ordered','Shipped','Delivered'].includes(x.status)).length;
-  const isFiltered      = fProject || fStatus!=='all' || fVendor || fSearch || (fReturn && fReturn!=='all');
+  const isFiltered      = fProject || fStatus!=='all' || fVendor || fSearch || (fReturn && fReturn!=='all') || fReleased;
   const scope = isFiltered ? 'Filtered items' : 'All items';
 
   document.getElementById('totalsBar').innerHTML = `
@@ -2741,7 +2765,7 @@ function render(){
 // ── Export / Print PDF ────────────────────────────────────────────
 function exportPDF(){
   // Use the same shared filter as render() — guaranteed to match what's on screen
-  const { list, fProject, fStatus, fVendor, fSearch, fReturn } = getFilteredList();
+  const { list, fProject, fStatus, fVendor, fSearch, fReturn, fReleased } = getFilteredList();
 
   // Totals
   const contractVal    = x => x.totalAmt != null ? x.totalAmt : (x.depositAmt != null ? x.depositAmt : 0);
@@ -2751,9 +2775,10 @@ function exportPDF(){
   const depsOutstanding= depsOut.reduce((s,x) => s + (x.depositAmt||0), 0);
   const outstanding    = totalValue - totalPaid;
   const orderedCount   = list.filter(x => ['Ordered','Shipped','Delivered'].includes(x.status)).length;
-  const isFiltered     = fProject || fStatus!=='all' || fVendor || fSearch || (fReturn && fReturn!=='all');
+  const isFiltered     = fProject || fStatus!=='all' || fVendor || fSearch || (fReturn && fReturn!=='all') || fReleased;
   const statusLabel    = fStatus && fStatus !== 'all' ? ` · ${fStatus}` : '';
-  const unitLabel      = (fProject ? 'Project '+fProject : 'All Projects') + statusLabel;
+  const releasedLabel  = fReleased ? ' · Released to Order' : '';
+  const unitLabel      = (fProject ? 'Project '+fProject : 'All Projects') + statusLabel + releasedLabel;
   const printDate      = new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
 
   // Status color helper
