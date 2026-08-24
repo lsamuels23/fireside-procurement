@@ -1,0 +1,2837 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Procurement Tracker — Units 8A &amp; 8B</title>
+<style>
+  :root {
+    --bg: #f0f2f5;
+    --card: #ffffff;
+    --line: #e2e6ec;
+    --text: #1a2130;
+    --muted: #6b7684;
+    --accent: #2f6fed;
+    --accent-soft: #e8f0fe;
+    --shadow: 0 1px 4px rgba(0,0,0,.09), 0 1px 2px rgba(0,0,0,.05);
+
+    --delivered: #1a8a4a;
+    --delivered-bg: #e6f5ec;
+    --ordered: #1565c0;
+    --ordered-bg: #e3eeff;
+    --shipped: #7c3aed;
+    --shipped-bg: #f1ebfe;
+    --quoting: #b45309;
+    --quoting-bg: #fef3e2;
+    --released: #1a8a4a;
+    --released-bg: #e6f5ec;
+    --pending: #4b5563;
+    --pending-bg: #f1f3f5;
+    --approved: #0e7490;
+    --approved-bg: #e0f7fb;
+    --danger: #c0392b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Segoe UI", system-ui, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+  }
+  header {
+    background: #1a2a4a;
+    color: #fff;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 17px; margin: 0; font-weight: 700; letter-spacing: .01em; }
+  header .sub { color: #9ab0d4; font-size: 12px; }
+  header .spacer { flex: 1; }
+  header button {
+    font-family: inherit; font-size: 13px; cursor: pointer;
+    border: 1px solid rgba(255,255,255,.25); background: rgba(255,255,255,.1);
+    color: #fff; padding: 7px 14px; border-radius: 7px; font-weight: 600;
+  }
+  header button:hover { background: rgba(255,255,255,.2); }
+
+  .wrap { max-width: 1500px; margin: 0 auto; padding: 20px 14px 60px; }
+
+  /* ADD FORM */
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr) repeat(4, 1fr);
+    gap: 10px 12px;
+    align-items: start;
+  }
+  @media(max-width:1100px){ .form-grid { grid-template-columns: repeat(4,1fr); } }
+  @media(max-width:700px){  .form-grid { grid-template-columns: 1fr 1fr; } }
+  .form-grid input[type="text"],
+  .form-grid select {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--line);
+    border-radius: 7px; font-size: 13px; font-family: inherit;
+    background: #fff; color: var(--text);
+  }
+  .form-grid input:focus, .form-grid select:focus {
+    outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .form-hint { font-size: 11px; color: var(--muted); margin-top: 8px; }
+  .btn-add {
+    font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+    background: var(--accent); color: #fff; border: none;
+    padding: 9px 18px; border-radius: 7px; flex: 1; white-space: nowrap;
+  }
+  .btn-add:hover { background: #2660d6; }
+  .btn-add.btn-review {
+    background: #f3eeff; color: #6d28d9;
+    border: 1.5px solid #c4b5fd;
+  }
+  .btn-add.btn-review:hover { background: #ede9fe; }
+
+  /* CARD / FILTER */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    margin-bottom: 18px;
+  }
+  .card h2 {
+    font-size: 12px; margin: 0; padding: 11px 16px;
+    border-bottom: 1px solid var(--line); font-weight: 700;
+    color: var(--muted); text-transform: uppercase; letter-spacing: .05em;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .card .body { padding: 14px 16px; }
+
+  .controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; min-width: 130px; }
+  label { font-size: 11px; color: var(--muted); margin-bottom: 4px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  select, input[type="text"] {
+    padding: 8px 10px; border: 1px solid var(--line);
+    border-radius: 7px; font-size: 13px; font-family: inherit;
+    background: #fff; color: var(--text);
+  }
+  select:focus, input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+  /* TABLE */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 860px; }
+  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--muted); white-space: nowrap; background: #fafbfc;
+    position: sticky; top: 0;
+  }
+  tbody tr:hover { background: #fafbfd; }
+  tbody tr.released-row { background: inherit; }
+  tbody tr.released-row:hover { background: inherit; }
+  td.cat-cell { font-weight: 600; }
+  .unit-badge {
+    display: inline-block; font-size: 10px; font-weight: 800;
+    padding: 2px 7px; border-radius: 4px; letter-spacing: .05em;
+    background: #1a2a4a; color: #fff; margin-right: 4px;
+  }
+  .unit-badge.b { background: #0f4c75; }
+
+  /* STATUS PILLS */
+  .pill {
+    display: inline-block; padding: 3px 10px; border-radius: 20px;
+    font-size: 11px; font-weight: 700; white-space: nowrap; letter-spacing: .02em;
+  }
+  .pill.delivered { background: var(--delivered-bg); color: var(--delivered); }
+  .pill.ordered   { background: var(--ordered-bg);   color: var(--ordered); }
+  .pill.shipped   { background: var(--shipped-bg);   color: var(--shipped); }
+  .pill.quoting   { background: var(--quoting-bg);   color: var(--quoting); }
+  .pill.released  { background: var(--released-bg);  color: var(--released); }
+  .pill-released-action { background: #e6f5ec; color: #1a8a4a; font-size: 12px; padding: 5px 12px; }
+  .pill.pending   { background: var(--pending-bg);   color: var(--pending); }
+  .pill.approved  { background: var(--approved-bg);  color: var(--approved); }
+
+  /* RETURNS PILLS */
+  .pill.ret-need      { background: #fde8e8; color: #b91c1c; }
+  .pill.ret-progress  { background: #fff2dd; color: #b45309; }
+  .pill.ret-processed { background: #e0f2fe; color: #0369a1; }
+  .pill.ret-complete  { background: #e6f5ec; color: #1a8a4a; }
+
+  .overdue { color: var(--danger); font-weight: 700; }
+
+  /* AMOUNTS */
+  .amt { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .amt-deposit { color: #0891b2; font-weight: 700; }
+  .amt-total   { color: #0f766e; font-weight: 700; }
+  .muted { color: var(--muted); }
+  .small { font-size: 12px; }
+  .right { text-align: right; }
+
+  /* RELEASE BUTTON */
+  .btn-release {
+    font-family: inherit; font-size: 12px; cursor: pointer; font-weight: 700;
+    background: #f3eeff; color: #6d28d9;
+    border: 1px solid #c4b5fd; padding: 5px 12px; border-radius: 6px;
+    white-space: nowrap; transition: background .1s;
+  }
+  .btn-release:hover { background: #ede9fe; }
+  .btn-undo {
+    font-family: inherit; font-size: 11px; cursor: pointer; font-weight: 600;
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--line); padding: 4px 10px; border-radius: 6px;
+    white-space: nowrap;
+  }
+  .btn-undo:hover { color: var(--danger); border-color: var(--danger); background: #fdf2f2; }
+  .btn-del {
+    font-family: inherit; font-size: 12px; cursor: pointer; font-weight: 600;
+    background: transparent; color: var(--muted);
+    border: none; padding: 4px 6px; border-radius: 5px;
+  }
+  .btn-del:hover { color: var(--danger); background: #fdf2f2; }
+  .empty { text-align: center; padding: 40px; color: var(--muted); }
+  .notes-cell { font-size: 12px; color: var(--muted); max-width: 180px; }
+  .cat-tag { display: inline-block; font-size: 12px; background: #f1f3f5; color: var(--text); border-radius: 5px; padding: 2px 7px; margin: 1px 2px 1px 0; }
+
+  /* Released date / updated label */
+  .rel-date     { font-size: 11px; color: var(--released); display: block; margin-top: 2px; }
+  .btn-undo-release { display: block; margin-top: 4px; font-family: inherit; font-size: 10px; cursor: pointer; background: none; border: none; color: var(--muted); padding: 0; text-decoration: underline; }
+  .btn-undo-release:hover { color: var(--danger); }
+  .updated-label{ font-size: 10px; color: var(--muted); display: block; margin-top: 3px; font-style: italic; }
+
+  /* EDIT BUTTON */
+  .btn-edit {
+    font-family: inherit; font-size: 12px; cursor: pointer; font-weight: 600;
+    background: transparent; color: var(--muted);
+    border: none; padding: 4px 6px; border-radius: 5px;
+  }
+  .btn-edit:hover { color: var(--accent); background: var(--accent-soft); }
+
+  /* EDIT MODAL */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(10,20,40,.45); z-index: 1000;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: #fff; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,.18);
+    width: 100%; max-width: 680px; margin: 20px;
+    display: flex; flex-direction: column; max-height: 90vh;
+  }
+  .modal-header {
+    padding: 16px 20px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .modal-header h3 { margin: 0; font-size: 15px; font-weight: 700; }
+  .modal-close {
+    font-size: 18px; cursor: pointer; background: none; border: none;
+    color: var(--muted); line-height: 1; padding: 4px 8px; border-radius: 6px;
+  }
+  .modal-close:hover { background: var(--bg); color: var(--text); }
+  .modal-body { padding: 20px; overflow-y: auto; }
+  .modal-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px 16px;
+  }
+  .modal-grid .full { grid-column: span 2; }
+  .modal-field label {
+    display: block; font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .04em;
+    color: var(--muted); margin-bottom: 5px;
+  }
+  .modal-field input, .modal-field select, .modal-field textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--line);
+    border-radius: 7px; font-size: 13px; font-family: inherit;
+    background: #fff; color: var(--text);
+  }
+  .modal-field input:focus, .modal-field select:focus, .modal-field textarea:focus {
+    outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .modal-field textarea { resize: vertical; min-height: 60px; }
+  .release-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--text); }
+  .release-toggle input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--released); cursor: pointer; flex-shrink: 0; }
+  .dep-full-check { display: flex; align-items: center; gap: 5px; margin-top: 5px; font-size: 11.5px; color: var(--muted); cursor: pointer; font-weight: 400; text-transform: none; letter-spacing: 0; white-space: nowrap; }
+  .dep-full-check input[type=checkbox] { width: 13px; height: 13px; cursor: pointer; accent-color: var(--accent); flex-shrink: 0; }
+  input:disabled { background: #f1f3f5 !important; color: #c0c5cc !important; cursor: not-allowed; opacity: 0.6; border-color: #dde1e7 !important; }
+
+  /* STATUS HISTORY EDITOR */
+  .hist-list { display: flex; flex-direction: column; gap: 8px; }
+  .hist-row { display: flex; align-items: center; gap: 10px; }
+  .hist-row .hist-badge {
+    min-width: 130px; font-size: 12px; font-weight: 700; color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .hist-row input[type="datetime-local"] {
+    flex: 1; padding: 7px 9px; border: 1px solid var(--line);
+    border-radius: 7px; font-size: 13px; font-family: inherit;
+    background: #fff; color: var(--text);
+  }
+  .hist-row input[type="datetime-local"]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .hist-row .hist-fixed { flex: 1; font-size: 12px; color: var(--muted); font-style: italic; }
+  .hist-empty { font-size: 12px; color: var(--muted); }
+  .ship-hint { font-size: 12px; color: var(--muted); margin-top: 6px; min-height: 15px; }
+  .ship-hint b { color: var(--ink, inherit); font-weight: 700; }
+  .modal-footer {
+    padding: 14px 20px; border-top: 1px solid var(--line);
+    display: flex; align-items: center; gap: 10px; justify-content: flex-end;
+  }
+  .modal-updated { font-size: 11px; color: var(--muted); margin-right: auto; }
+  .btn-save {
+    font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+    background: var(--accent); color: #fff; border: none;
+    padding: 9px 22px; border-radius: 7px;
+  }
+  .btn-save:hover { background: #2660d6; }
+  .btn-cancel-modal {
+    font-family: inherit; font-size: 13px; cursor: pointer;
+    background: #fff; color: var(--muted); border: 1px solid var(--line);
+    padding: 9px 16px; border-radius: 7px;
+  }
+  .btn-cancel-modal:hover { background: var(--bg); }
+
+  /* TOTALS BAR */
+  .totals-bar {
+    display: flex; gap: 0; margin-bottom: 18px;
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 10px; box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .tblock {
+    flex: 1; padding: 14px 20px; border-right: 1px solid var(--line);
+  }
+  .tblock:last-child { border-right: none; }
+  .tblock .t-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: 5px; font-weight: 700; }
+  .tblock .t-value { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .tblock .t-sub   { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .t-deposit { color: #0891b2; }
+  .t-full    { color: #0f766e; }
+  .t-items   { color: var(--text); }
+
+  /* Save toast */
+  #saveToast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: #1a2a4a; color: #fff; padding: 10px 22px; border-radius: 8px;
+    font-size: 13px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,.18);
+    pointer-events: none; opacity: 0; transition: opacity .2s, transform .2s; z-index: 9999;
+  }
+  #saveToast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media print {
+    header button, .btn-release, .btn-undo, .controls, .card:first-of-type { display: none !important; }
+    body { background: #fff; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Fireside Procurement Tracker</h1>
+    <div class="sub">Release-to-order &amp; payment amounts</div>
+  </div>
+  <div class="spacer"></div>
+  <button onclick="exportPDF()" title="Print or export visible items as PDF">🖨 Print / PDF</button>
+  <button onclick="saveAsFile()" title="Save all current data into a new copy of this file">💾 Save File</button>
+  <button onclick="document.getElementById('importFile').click()" title="Restore from a JSON backup">⬆ Restore</button>
+  <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
+</header>
+
+<div class="wrap">
+
+  <!-- ADD ITEM -->
+  <div class="card">
+    <h2>Add an item</h2>
+    <div class="body">
+      <div class="form-grid">
+        <div>
+          <label for="fProject">Project Name</label>
+          <input type="text" id="fProject" list="projectList" placeholder="e.g. 8A, 8B…" autocomplete="off">
+          <datalist id="projectList"><option value="11"></option><option value="8A"></option><option value="8B"></option><option value="Fireside"></option></datalist>
+        </div>
+        <div>
+          <label for="fItemName">Item Name</label>
+          <input type="text" id="fItemName" placeholder="e.g. item description…" autocomplete="off">
+        </div>
+        <div>
+          <label for="fCategory">Category</label>
+          <input type="text" id="fCategory" list="categoryList" placeholder="e.g. Tile, Cabinetry…" autocomplete="off">
+          <datalist id="categoryList"><option value="Bath Accessories"></option><option value="Cabinetry"></option><option value="Cabinetry Hardware"></option><option value="Closets"></option><option value="Exterior Lighting"></option><option value="Finish Plumbing"></option><option value="Firepit"></option><option value="Fireplace"></option><option value="Fireplace Stone"></option><option value="Interior Door Hardware"></option><option value="Interior Doors"></option><option value="Interior Lighting"></option><option value="Interior Lighting (Bath Sconces)"></option><option value="Interior Lighting (Island Pendants)"></option><option value="Interior Lighting (Standard)"></option><option value="Kitchen Faucet"></option><option value="Landscaping"></option><option value="Mirrors"></option><option value="Rough Plumbing"></option><option value="Shower Glass"></option><option value="Singage"></option><option value="Tile"></option><option value="Tile – Sauna"></option><option value="Tile – Thresholds / Niche Shelves"></option><option value="countertops"></option></datalist>
+        </div>
+        <div>
+          <label for="fVendorNew">Vendor</label>
+          <input type="text" id="fVendorNew" list="vendorList" placeholder="Vendor name…" autocomplete="off">
+          <datalist id="vendorList"><option value="Best Tile"></option><option value="Boston Closets"></option><option value="CED Gilford"></option><option value="Cape Cod Counter Works"></option><option value="Ferguson?"></option><option value="Firepit Art"></option><option value="GSG"></option><option value="Genrose Stone"></option><option value="Granite State Glass"></option><option value="NH Thinstone"></option><option value="RA Graham"></option><option value="Supply New England"></option><option value="Top Knobs"></option><option value="Visual Comfort"></option></datalist>
+        </div>
+        <div>
+          <label for="fContact">Contact</label>
+          <input type="text" id="fContact" placeholder="Contact name…" autocomplete="off">
+        </div>
+        <div>
+          <label for="fStatus" id="fStatusLabel">Status</label>
+          <select id="fStatus"><option value="">— Select —</option><option>Quoting</option><option>Quote Approved</option><option>Ordered</option><option>Shipped</option><option>Delivered</option></select>
+          <label class="dep-full-check" title="Switches the Status dropdown to the return states and adds the item to the Returns column"><input type="checkbox" id="fIsReturn" onchange="toggleReturnMode()"> This item is a return</label>
+        </div>
+        <div>
+          <label for="fLeadTime">Lead Time</label>
+          <input type="text" id="fLeadTime" placeholder="e.g. 6–8 weeks…" autocomplete="off">
+        </div>
+        <div>
+          <label for="fDeposit">Deposit Amount</label>
+          <input type="text" id="fDeposit" placeholder="0.00" inputmode="decimal" autocomplete="off" oninput="syncDepositFull()">
+          <label class="dep-full-check"><input type="checkbox" id="fDepositIsFull" onchange="toggleDepositFull()"> Deposit is full amount</label>
+        </div>
+        <div>
+          <label for="fTotal">Full Amount</label>
+          <input type="text" id="fTotal" placeholder="0.00" inputmode="decimal" autocomplete="off">
+        </div>
+        <div>
+          <label for="fDelivery">Delivery Due Date</label>
+          <input type="date" id="fDelivery">
+        </div>
+        <div style="grid-column: span 1; display:flex; align-items:flex-end; gap:8px;">
+          <button class="btn-add" onclick="addItem(false)">Add Item</button>
+          <button class="btn-add btn-review" onclick="addItem(true)">Submit for Review</button>
+        </div>
+      </div>
+      <div class="form-hint">All fields are optional. <strong>Add Item</strong> uses the selected status. <strong>Submit for Review</strong> adds the item as Pending — a Release to Order button will appear on that row. Ticking <strong>This item is a return</strong> switches the Status dropdown to the return states (Need to Return → Completed) and files the item under Returns.</div>
+    </div>
+  </div>
+
+  <!-- FILTERS -->
+  <div class="card">
+    <h2>Filter</h2>
+    <div class="body">
+      <div class="controls">
+        <div class="field">
+          <label>Project</label>
+          <select id="filterProject" onchange="render()"><option value="">All projects</option><option value="11">11</option><option value="8A">8A</option><option value="8B">8B</option><option value="Fireside">Fireside</option></select>
+        </div>
+        <div class="field">
+          <label>Status</label>
+          <select id="filterStatus" onchange="render()">
+            <option value="all">All statuses</option>
+            <option value="Released">⬦ Released to Order</option>
+            <option value="Quoting">Quoting</option>
+            <option value="Quote Approved">Quote Approved</option>
+            <option value="Ordered">Ordered</option>
+            <option value="Shipped">Shipped</option>
+            <option value="Delivered">Delivered</option>
+            <option value="Pending">Pending / TBD</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Returns</label>
+          <select id="filterReturn" onchange="render()">
+            <option value="all">All items</option>
+            <option value="any">⬦ Any return activity</option>
+            <option value="Need to Return">Need to Return</option>
+            <option value="Return in Progress">Return in Progress</option>
+            <option value="Return Processed">Return Processed</option>
+            <option value="Completed">Completed</option>
+            <option value="none">No return</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Vendor</label>
+          <select id="filterVendor" onchange="render()"><option value="">All vendors</option><option value="Best Tile">Best Tile</option><option value="Boston Closets">Boston Closets</option><option value="CED Gilford">CED Gilford</option><option value="Cape Cod Counter Works">Cape Cod Counter Works</option><option value="Ferguson?">Ferguson?</option><option value="Firepit Art">Firepit Art</option><option value="GSG">GSG</option><option value="Genrose Stone">Genrose Stone</option><option value="Granite State Glass">Granite State Glass</option><option value="NH Thinstone">NH Thinstone</option><option value="RA Graham">RA Graham</option><option value="Supply New England">Supply New England</option><option value="Top Knobs">Top Knobs</option><option value="Visual Comfort">Visual Comfort</option></select>
+        </div>
+        <div class="field" style="flex:1; min-width:180px;">
+          <label>Search</label>
+          <input type="text" id="filterSearch" placeholder="Category, vendor, contact…" oninput="render()">
+        </div>
+        <div class="field" style="justify-content:flex-end">
+          <label>&nbsp;</label>
+          <button onclick="clearFilters()" style="padding:8px 14px;border:1px solid var(--line);background:#fff;border-radius:7px;cursor:pointer;font-family:inherit;font-size:13px;">Clear filters</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOTALS BAR -->
+  <div id="totalsBar" class="totals-bar">
+    <div class="tblock">
+      <div class="t-label">Items shown</div>
+      <div class="t-value t-items">8</div>
+      <div class="t-sub">Filtered items</div>
+    </div>
+    <div class="tblock">
+      <div class="t-label">Paid to Date</div>
+      <div class="t-value t-deposit"><span style="color:var(--muted);font-size:16px">—</span></div>
+      <div class="t-sub">0 items ordered, shipped or delivered</div>
+    </div>
+    <div class="tblock">
+      <div class="t-label">Deposits Outstanding</div>
+      <div class="t-value" style="color:var(--quoting)">$74,483.93</div>
+      <div class="t-sub">8 items with deposit not yet ordered</div>
+    </div>
+    <div class="tblock">
+      <div class="t-label">Total Outstanding</div>
+      <div class="t-value" style="color:var(--quoting)">$99,351.15</div>
+      <div class="t-sub">Not yet ordered</div>
+    </div>
+    <div class="tblock">
+      <div class="t-label">Running Total</div>
+      <div class="t-value t-full">$99,351.15</div>
+      <div class="t-sub">All items combined</div>
+    </div></div>
+
+  <!-- TABLE -->
+  <div class="card">
+    <h2 id="tableTitle">All Projects — 8 items</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:80px">Project</th>
+            <th>Item Name</th>
+            <th>Category</th>
+            <th>Vendor</th>
+            <th>Contact</th>
+            <th style="width:110px">Status</th>
+            <th style="width:130px">Returns</th>
+            <th style="width:110px">Lead Time</th>
+            <th style="width:120px">Projected Delivery</th>
+            <th style="width:115px">Delivery Due</th>
+            <th class="right" style="width:130px">Deposit Amount</th>
+            <th class="right" style="width:130px">Full Amount</th>
+            <th style="width:160px">Notes</th>
+            <th style="width:160px">Release to Order</th>
+            <th style="width:36px"></th>
+          </tr>
+        </thead>
+        <tbody id="rows"><tr class="">
+      <td><span class="unit-badge">Fireside</span></td>
+      <td>Firepit - Firelight Lane</td>
+      <td class="cat-cell"><span class="cat-tag">Landscaping</span><span class="updated-label">Updated Aug 24, 2026</span></td>
+      <td>Firepit Art</td>
+      <td><span class="muted">—</span></td>
+      <td><span class="pill approved">Quote Approved</span><span class="updated-label" title="Added: Aug 13, 2026 1:06 PM
+Quoting: Aug 13, 2026 1:06 PM
+Quote Approved: Aug 24, 2026 2:51 PM">Aug 24, 2026 2:51 PM</span></td>
+      <td><span class="muted">—</span></td>
+      <td class="small">3-6</td>
+      <td class="small"><span class="muted">—</span></td>
+      <td class="small"><span class="muted">—</span></td>
+      <td class="right"><span class="amt amt-deposit">$20,402.83</span></td>
+      <td class="right"><span class="amt amt-total">$20,402.83</span></td>
+      <td class="notes-cell"></td>
+      <td><button class="btn-release" onclick="release('usr-msrrsger')">▷ Release to Order</button></td>
+      <td style="white-space:nowrap">
+        <button class="btn-edit" title="Edit" onclick="openEdit('usr-msrrsger')">✏</button>
+        <button class="btn-del" title="Remove" onclick="delItem('usr-msrrsger')">✕</button>
+      </td>
+    </tr><tr class="">
+      <td><span class="unit-badge">Fireside</span></td>
+      <td>Exterior Site Lighting, (2) street lights</td>
+      <td class="cat-cell"><span class="cat-tag">Exterior Lighting</span><span class="updated-label">Updated Aug 24, 2026</span></td>
+      <td>CED Gilford</td>
+      <td>Benjamin Buchholz</td>
+      <td><span class="pill approved">Quote Approved</span><span class="updated-label" title="Added: Aug 13, 2026 1:03 PM
+Quoting: Aug 13, 2026 1:03 PM
+Released: Aug 21, 2026 2:05 PM
+Quoting: Aug 21, 2026 2:05 PM
+Quote Approved: Aug 24, 2026 2:51 PM">Aug 24, 2026 2:51 PM</span></td>
+      <td><span class="muted">—</span></td>
+      <td class="small">12 weeks</td>
+      <td class="small"><span class="" title="Today + lead time">Nov 16, 2026</span></td>
+      <td class="small"><span class="muted">—</span></td>
+      <td class="right"><span class="amt amt-deposit">$20,152.94</span></td>
+      <td class="right"><span class="amt amt-total">$20,152.94</span></td>
+      <td class="notes-cell">pricing from 2/10/26 for qt-2 . In process of getting latest pricing
+requested in draw</td>
+      <td><button class="btn-release" onclick="release('usr-msrrovkf')">▷ Release to Order</button></td>
+      <td style="white-space:nowrap">
+        <button class="btn-edit" title="Edit" onclick="openEdit('usr-msrrovkf')">✏</button>
+        <button class="btn-del" title="Remove" onclick="delItem('usr-msrrovkf')">✕</button>
+      </td>
+    </tr><tr class="">
+      <td><span class="unit-badge">8A</span> <span class="unit-badge b">8B</span></td>
+      <td><span class="muted">—</span></td>
+      <td class="cat-cell"><span class="cat-tag">Tile – Thresholds / Niche Shelves</span> <span class="cat-tag">countertops</span><span class="updated-label">Updated Jul 23, 2026</span></td>
+      <td>Cape Cod Counter Works</td>
+      <td>Marco / Ashley Marks</td>
+      <td><span class="pill approved">Quote Approved</span><span class="updated-label" title="Status changed Jul 23, 2026 3:18 PM">Jul 23, 2026 3:18 PM</span></td>
+      <td><span class="muted">—</span></td>
+      <td class="small"><span class="muted">—</span></td>
+      <td class="small"><span class="muted">—</span></td>
+      <td class="small"><span class="muted">—</span></td>
+      <td class="right"><span class="amt amt-deposit">$18,397.22</span></td>
+      <td class="right"><span class="amt amt-total">$36,794.44</span></td>
+      <td class="notes-cell">Inv. 64787</td>
+      <td><button class="btn-release" onclick="release('8a-tile-thresh')">▷ Release to Order</button></td>
+      <td style="white-space:nowrap">
+        <button class="btn-edit" title="Edit" onclick="openEdit('8a-tile-thresh')">✏</button>
+        <button class="btn-del" title="Remove" onclick="delItem('8a-tile-thresh')">✕</button>
+      </td>
+    </tr><tr class="">
+      <td><span class="unit-badge">8A</span></td>
+      <td><span class="muted">—</span></td>
+      <td class="cat-cell"><span class="cat-tag">Shower Glass</span><span class="updated-label">Updated Jul 23, 2026</span></td>
+      <td>Granite State Glass</td>
+      <td>Megan</td>
+      <td><span class="pill approved">Quote Approved</span><span class="updated-label" title="Status changed Jul 23, 2026 3:34 PM">Jul 23, 2026 3:34 PM</span></td>
+      <td><span class="muted">—</span></td>
+      <td class="small"><span class="muted">—</span></td>
+      <td class="small"><span class="muted">—</span></td>
+      <td class="small"><span class="muted">—</span></td>
+      <td class="right"><span class="amt amt-deposit">$3,235.00</span></td>
+      <td class="right"><span class="amt amt-total">$6,470.00</span></td>
+      <td class="notes-cell">Prepped — notify for final measure</td>
+      <td><button class="btn-release" onclick="release('8a-shower-glass')">▷ Release to Order</button></td>
+      <td style="white-space:nowrap">
+        <button class="btn-edit" title="Edit" onclick="openEdit('8a-shower-glass')">✏</button>
+        <button class="btn-del" title="Remove" onclick="delItem('8a-shower-glass')">✕</button>
+      </td>
+    </tr><tr class="">
+      <td><span class="unit-badge">8A</span></td>
+      <td><span class="muted">—</span></td>
+      <td class="cat-cell"><span class="cat-tag">Bath Accessories</span><span class="updated-label">Updated Aug 7, 2026</span></td>
+      <td>Supply New England</td>
+      <td>Mary</td>
+      <td><span class="pill approved">Quote Approved</span><span class="updated-label" title="Quoting: Aug 6, 2026 7:13 PM
+Quote Approved: Aug 7, 2026 12:46 PM">Aug 7, 2026 12:46 PM</span></td>
+      <td><span class="muted">—</span></td>
+      <td class="small"><span class="muted">—</span></td>
+      <td class="small"><span class="muted">—</span></td>
+      <td class="small"><span class="muted">—</span></td>
+      <td class="right"><span class="amt amt-deposit">$1,779.91</span></td>
+      <td class="right"><span class="amt amt-total">$1,779.91</span></td>
+      <td class="notes-cell"></td>
+      <td><span class="muted small">—</span></td>
+      <td style="white-space:nowrap">
+        <button class="btn-edit" title="Edit" onclick="openEdit('8a-bath-acc')">✏</button>
+        <button class="btn-del" title="Remove" onclick="delItem('8a-bath-acc')">✕</button>
+      </td>
+    </tr><tr class="">
+      <td><span class="unit-badge b">8B</span></td>
+      <td><span class="muted">—</span></td>
+      <td class="cat-cell"><span class="cat-tag">Shower Glass</span><span class="updated-label">Updated Jul 23, 2026</span></td>
+      <td>GSG</td>
+      <td>Megan</td>
+      <td><span class="pill approved">Quote Approved</span><span class="updated-label" title="Status changed Jul 23, 2026 3:18 PM">Jul 23, 2026 3:18 PM</span></td>
+      <td><span class="muted">—</span></td>
+      <td class="small"><span class="muted">—</span></td>
+      <td class="small"><span class="muted">—</span></td>
+      <td class="small"><span class="muted">—</span></td>
+      <td class="right"><span class="amt amt-deposit">$3,235.00</span></td>
+      <td class="right"><span class="amt amt-total">$6,470.00</span></td>
+      <td class="notes-cell">Prepped — notify for final measure</td>
+      <td><button class="btn-release" onclick="release('8b-shower-glass')">▷ Release to Order</button></td>
+      <td style="white-space:nowrap">
+        <button class="btn-edit" title="Edit" onclick="openEdit('8b-shower-glass')">✏</button>
+        <button class="btn-del" title="Remove" onclick="delItem('8b-shower-glass')">✕</button>
+      </td>
+    </tr><tr class="">
+      <td><span class="unit-badge b">8B</span></td>
+      <td><span class="muted">—</span></td>
+      <td class="cat-cell"><span class="cat-tag">Bath Accessories</span><span class="updated-label">Updated Aug 7, 2026</span></td>
+      <td>Supply New England</td>
+      <td>Mary</td>
+      <td><span class="pill approved">Quote Approved</span><span class="updated-label" title="Quoting: Aug 6, 2026 7:13 PM
+Quote Approved: Aug 7, 2026 12:47 PM">Aug 7, 2026 12:47 PM</span></td>
+      <td><span class="muted">—</span></td>
+      <td class="small"><span class="muted">—</span></td>
+      <td class="small"><span class="muted">—</span></td>
+      <td class="small"><span class="muted">—</span></td>
+      <td class="right"><span class="amt amt-deposit">$1,779.91</span></td>
+      <td class="right"><span class="amt amt-total">$1,779.91</span></td>
+      <td class="notes-cell"></td>
+      <td><span class="muted small">—</span></td>
+      <td style="white-space:nowrap">
+        <button class="btn-edit" title="Edit" onclick="openEdit('8b-bath-acc')">✏</button>
+        <button class="btn-del" title="Remove" onclick="delItem('8b-bath-acc')">✕</button>
+      </td>
+    </tr><tr class="">
+      <td><span class="unit-badge b">8B</span></td>
+      <td>Interior Lighting (Standard), Kitchen Pendants</td>
+      <td class="cat-cell"><span class="cat-tag">Interior Lighting</span><span class="updated-label">Updated Aug 7, 2026</span></td>
+      <td>Visual Comfort</td>
+      <td>Mountain Furniture Co.</td>
+      <td><span class="pill approved">Quote Approved</span><span class="updated-label" title="Quote Approved: Jul 23, 2026 3:18 PM">Jul 23, 2026 3:18 PM</span></td>
+      <td><span class="muted">—</span></td>
+      <td class="small"><span class="muted">—</span></td>
+      <td class="small"><span class="muted">—</span></td>
+      <td class="small"><span class="muted">—</span></td>
+      <td class="right"><span class="amt amt-deposit">$5,501.12</span></td>
+      <td class="right"><span class="amt amt-total">$5,501.12</span></td>
+      <td class="notes-cell">Nina Huettmann</td>
+      <td><button class="btn-release" onclick="release('8b-lighting-std')">▷ Release to Order</button></td>
+      <td style="white-space:nowrap">
+        <button class="btn-edit" title="Edit" onclick="openEdit('8b-lighting-std')">✏</button>
+        <button class="btn-del" title="Remove" onclick="delItem('8b-lighting-std')">✕</button>
+      </td>
+    </tr></tbody>
+      </table>
+      <div class="empty" id="emptyMsg" style="display: none;">No items match the current filters.</div>
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+
+<div id="saveToast" class="">✓ Saved</div>
+
+<!-- EDIT MODAL -->
+<div class="modal-overlay" id="editModal" onclick="modalOverlayClick(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Edit Item</h3>
+      <button class="modal-close" onclick="closeEdit()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-grid">
+        <div class="modal-field">
+          <label>Project Name</label>
+          <input type="text" id="e-project" list="eProjectList" autocomplete="off">
+          <datalist id="eProjectList"><option value="11"></option><option value="8A"></option><option value="8B"></option><option value="Fireside"></option></datalist>
+        </div>
+        <div class="modal-field">
+          <label>Item Name</label>
+          <input type="text" id="e-itemname" autocomplete="off">
+        </div>
+        <div class="modal-field">
+          <label>Category</label>
+          <input type="text" id="e-category" list="eCategoryList" autocomplete="off">
+          <datalist id="eCategoryList"><option value="Bath Accessories"></option><option value="Cabinetry"></option><option value="Cabinetry Hardware"></option><option value="Closets"></option><option value="Exterior Lighting"></option><option value="Finish Plumbing"></option><option value="Firepit"></option><option value="Fireplace"></option><option value="Fireplace Stone"></option><option value="Interior Door Hardware"></option><option value="Interior Doors"></option><option value="Interior Lighting"></option><option value="Interior Lighting (Bath Sconces)"></option><option value="Interior Lighting (Island Pendants)"></option><option value="Interior Lighting (Standard)"></option><option value="Kitchen Faucet"></option><option value="Landscaping"></option><option value="Mirrors"></option><option value="Rough Plumbing"></option><option value="Shower Glass"></option><option value="Singage"></option><option value="Tile"></option><option value="Tile – Sauna"></option><option value="Tile – Thresholds / Niche Shelves"></option><option value="countertops"></option></datalist>
+        </div>
+        <div class="modal-field">
+          <label>Vendor</label>
+          <input type="text" id="e-vendor" list="eVendorList" autocomplete="off">
+          <datalist id="eVendorList"><option value="Best Tile"></option><option value="Boston Closets"></option><option value="CED Gilford"></option><option value="Cape Cod Counter Works"></option><option value="Ferguson?"></option><option value="Firepit Art"></option><option value="GSG"></option><option value="Genrose Stone"></option><option value="Granite State Glass"></option><option value="NH Thinstone"></option><option value="RA Graham"></option><option value="Supply New England"></option><option value="Top Knobs"></option><option value="Visual Comfort"></option></datalist>
+        </div>
+        <div class="modal-field">
+          <label>Contact</label>
+          <input type="text" id="e-contact" autocomplete="off">
+        </div>
+        <div class="modal-field">
+          <label>Status</label>
+          <select id="e-status" onchange="updateShipHint()">
+            <option value="">— Select —</option>
+            <option>Quoting</option>
+            <option>Quote Approved</option>
+            <option>Ordered</option>
+            <option>Shipped</option>
+            <option>Delivered</option>
+          </select>
+        </div>
+        <div class="modal-field">
+          <label>Returns</label>
+          <select id="e-return">
+            <option value="">— None —</option>
+            <option>Need to Return</option>
+            <option>Return in Progress</option>
+            <option>Return Processed</option>
+            <option>Completed</option>
+          </select>
+        </div>
+        <div class="modal-field">
+          <label>Lead Time</label>
+          <input type="text" id="e-leadtime" autocomplete="off" oninput="updateShipHint()">
+        </div>
+        <div class="modal-field">
+          <label>Deposit Amount</label>
+          <input type="text" id="e-deposit" placeholder="0.00" inputmode="decimal" autocomplete="off">
+        </div>
+        <div class="modal-field">
+          <label>Full Amount</label>
+          <input type="text" id="e-total" placeholder="0.00" inputmode="decimal" autocomplete="off">
+        </div>
+        <div class="modal-field">
+          <label>Delivery Due Date</label>
+          <input type="date" id="e-delivery">
+        </div>
+        <div class="modal-field full">
+          <label>Notes</label>
+          <textarea id="e-notes"></textarea>
+        </div>
+        <div class="modal-field full">
+          <label>Release to Order</label>
+          <label class="release-toggle">
+            <input type="checkbox" id="e-released">
+            <span class="release-toggle-label">Show Release to Order button on this item</span>
+          </label>
+        </div>
+        <div class="modal-field full">
+          <label>Status History <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)">— recorded statuses &amp; dates; dates can be overridden (date added is fixed)</span></label>
+          <div id="eHistoryList" class="hist-list"><div class="hist-row" data-hrow="" data-event="added" data-to="—" data-from="—" data-at="2026-08-13T17:03:32.559Z">
+        <span class="hist-badge">Added</span>
+        <span class="hist-fixed" title="The date an item was added cannot be changed">Aug 13, 2026 1:03 PM · fixed</span>
+      </div><div class="hist-row" data-hrow="" data-event="status" data-to="Quoting" data-from="—" data-at="2026-08-13T17:03:53.649Z">
+      <span class="hist-badge">Quoting</span>
+      <input type="datetime-local" value="2026-08-13T13:03">
+    </div><div class="hist-row" data-hrow="" data-event="status" data-to="Released" data-from="Quoting" data-at="2026-08-21T18:05:27.402Z">
+      <span class="hist-badge">Released</span>
+      <input type="datetime-local" value="2026-08-21T14:05">
+    </div><div class="hist-row" data-hrow="" data-event="status" data-to="Quoting" data-from="Released" data-at="2026-08-21T18:05:32.514Z">
+      <span class="hist-badge">Quoting</span>
+      <input type="datetime-local" value="2026-08-21T14:05">
+    </div></div>
+        </div>
+        <div class="modal-field full">
+          <label>Expected Ship Date <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)">— when the vendor expects to ship; with a lead time, projected delivery is calculated from this date</span></label>
+          <input type="date" id="e-shipdate" oninput="updateShipHint()">
+          <div id="eShipHint" class="ship-hint"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <span class="modal-updated" id="eUpdatedLabel">Added Aug 13, 2026 1:03 PM · Status "Quoting" set Aug 21, 2026 2:05 PM · Last updated Aug 21, 2026 2:05 PM</span>
+      <button class="btn-cancel-modal" onclick="closeEdit()">Cancel</button>
+      <button class="btn-save" onclick="saveEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const KEY = "procTracker_v2";
+
+/* SEED_START */
+const SEED = [
+  {
+    "id": "usr-mt7k660a",
+    "unit": "8A, 8B",
+    "project": "8A, 8B",
+    "itemName": "Stairs Lights",
+    "category": "Interior Lighting",
+    "vendor": "Visual Comfort",
+    "contact": "",
+    "status": "Ordered",
+    "returnStatus": "",
+    "leadTime": "2 weeks",
+    "deliveryDate": "",
+    "depositAmt": 2799.34,
+    "totalAmt": 2799.34,
+    "notes": "last call on item, Order # W2765505",
+    "released": false,
+    "releasedDate": null,
+    "pendingReview": false,
+    "userAdded": true,
+    "addedDate": "2026-08-24T18:17:21.130Z",
+    "statusHistory": [
+      {
+        "event": "added",
+        "from": "—",
+        "to": "—",
+        "at": "2026-08-24T18:17:21.130Z"
+      },
+      {
+        "event": "status",
+        "from": "—",
+        "to": "Ordered",
+        "at": "2026-08-24T18:17:21.130Z"
+      }
+    ],
+    "statusChangedDate": "2026-08-24T18:17:21.130Z",
+    "orderedDate": "2026-08-24T18:17:21.130Z",
+    "expectedShipDate": "2026-09-05",
+    "returnChangedDate": null,
+    "updatedDate": "2026-08-24T18:24:47.248Z",
+    "projectedDelivery": "2026-09-07"
+  },
+  {
+    "id": "usr-msrrys8z",
+    "unit": "Fireside",
+    "project": "Fireside",
+    "itemName": "Singage",
+    "category": "Singage",
+    "vendor": "NH Thinstone",
+    "contact": "",
+    "status": "Quoting",
+    "returnStatus": "",
+    "leadTime": "6-8",
+    "deliveryDate": "",
+    "depositAmt": null,
+    "totalAmt": null,
+    "notes": "",
+    "released": false,
+    "releasedDate": null,
+    "pendingReview": true,
+    "userAdded": true,
+    "addedDate": "2026-08-13T17:11:14.819Z",
+    "statusHistory": [
+      {
+        "event": "added",
+        "from": "—",
+        "to": "—",
+        "at": "2026-08-13T17:11:14.819Z"
+      },
+      {
+        "event": "status",
+        "from": "—",
+        "to": "Quoting",
+        "at": "2026-08-13T17:11:14.819Z"
+      }
+    ],
+    "statusChangedDate": "2026-08-13T17:11:14.819Z",
+    "expectedShipDate": "",
+    "returnChangedDate": null,
+    "orderedDate": null,
+    "updatedDate": "2026-08-13T17:11:22.002Z"
+  },
+  {
+    "id": "usr-msrrt5ns",
+    "unit": "Fireside",
+    "project": "Fireside",
+    "itemName": "Stone/ stone bench",
+    "category": "Firepit",
+    "vendor": "NH Thinstone",
+    "contact": "",
+    "status": "Quoting",
+    "returnStatus": "",
+    "leadTime": "",
+    "deliveryDate": "",
+    "depositAmt": null,
+    "totalAmt": null,
+    "notes": "",
+    "released": false,
+    "releasedDate": null,
+    "pendingReview": true,
+    "userAdded": true,
+    "addedDate": "2026-08-13T17:06:52.264Z",
+    "statusHistory": [
+      {
+        "event": "added",
+        "from": "—",
+        "to": "—",
+        "at": "2026-08-13T17:06:52.264Z"
+      },
+      {
+        "event": "status",
+        "from": "—",
+        "to": "Quoting",
+        "at": "2026-08-13T17:06:52.264Z"
+      }
+    ],
+    "statusChangedDate": "2026-08-13T17:06:52.264Z",
+    "expectedShipDate": "",
+    "returnChangedDate": null,
+    "orderedDate": null,
+    "updatedDate": "2026-08-13T17:10:08.561Z"
+  },
+  {
+    "id": "usr-msrrsger",
+    "unit": "Fireside",
+    "project": "Fireside",
+    "itemName": "Firepit - Firelight Lane",
+    "category": "Landscaping",
+    "vendor": "Firepit Art",
+    "contact": "",
+    "status": "Quote Approved",
+    "returnStatus": "",
+    "leadTime": "3-6",
+    "deliveryDate": "",
+    "depositAmt": 20402.83,
+    "totalAmt": 20402.83,
+    "notes": "",
+    "released": false,
+    "releasedDate": null,
+    "pendingReview": true,
+    "userAdded": true,
+    "addedDate": "2026-08-13T17:06:19.539Z",
+    "statusHistory": [
+      {
+        "event": "added",
+        "from": "—",
+        "to": "—",
+        "at": "2026-08-13T17:06:19.539Z"
+      },
+      {
+        "event": "status",
+        "from": "—",
+        "to": "Quoting",
+        "at": "2026-08-13T17:06:19.539Z"
+      },
+      {
+        "event": "status",
+        "from": "Quoting",
+        "to": "Quote Approved",
+        "at": "2026-08-24T18:51:07.382Z"
+      }
+    ],
+    "statusChangedDate": "2026-08-24T18:51:07.382Z",
+    "expectedShipDate": "",
+    "returnChangedDate": null,
+    "orderedDate": null,
+    "updatedDate": "2026-08-24T18:51:07.382Z"
+  },
+  {
+    "id": "usr-msrrovkf",
+    "unit": "Fireside",
+    "project": "Fireside",
+    "itemName": "Exterior Site Lighting, (2) street lights",
+    "category": "Exterior Lighting",
+    "vendor": "CED Gilford",
+    "contact": "Benjamin Buchholz",
+    "status": "Quote Approved",
+    "returnStatus": "",
+    "leadTime": "12 weeks",
+    "deliveryDate": "",
+    "depositAmt": 20152.94,
+    "totalAmt": 20152.94,
+    "notes": "pricing from 2/10/26 for qt-2 . In process of getting latest pricing\nrequested in draw",
+    "released": false,
+    "releasedDate": null,
+    "pendingReview": true,
+    "userAdded": true,
+    "addedDate": "2026-08-13T17:03:32.559Z",
+    "statusHistory": [
+      {
+        "event": "added",
+        "from": "—",
+        "to": "—",
+        "at": "2026-08-13T17:03:32.559Z"
+      },
+      {
+        "event": "status",
+        "from": "—",
+        "to": "Quoting",
+        "at": "2026-08-13T17:03:53.649Z"
+      },
+      {
+        "event": "status",
+        "from": "Quoting",
+        "to": "Released",
+        "at": "2026-08-21T18:05:27.402Z"
+      },
+      {
+        "event": "status",
+        "from": "Released",
+        "to": "Quoting",
+        "at": "2026-08-21T18:05:32.514Z"
+      },
+      {
+        "event": "status",
+        "from": "Quoting",
+        "to": "Quote Approved",
+        "at": "2026-08-24T18:51:11.127Z"
+      }
+    ],
+    "expectedShipDate": "",
+    "statusChangedDate": "2026-08-24T18:51:11.127Z",
+    "returnChangedDate": null,
+    "orderedDate": null,
+    "updatedDate": "2026-08-24T18:51:11.127Z"
+  },
+  {
+    "id": "usr-msjdsjz6",
+    "unit": "8B",
+    "project": "8B",
+    "itemName": "Garbage Disposal - Air Switch, Replacement sinktop switch button",
+    "category": "Finish Plumbing",
+    "vendor": "",
+    "contact": "",
+    "status": "",
+    "returnStatus": "",
+    "leadTime": "",
+    "deliveryDate": "",
+    "depositAmt": null,
+    "totalAmt": null,
+    "notes": "",
+    "released": false,
+    "releasedDate": null,
+    "pendingReview": false,
+    "userAdded": true,
+    "addedDate": "2026-08-07T20:12:20.130Z",
+    "statusHistory": [
+      {
+        "event": "added",
+        "from": "—",
+        "to": "—",
+        "at": "2026-08-07T20:12:20.130Z"
+      }
+    ]
+  },
+  {
+    "id": "usr-msjdrr2i",
+    "unit": "8A",
+    "project": "8A",
+    "itemName": "Garbage Disposal - Air Switch, Replacement sinktop switch button",
+    "category": "Finish Plumbing",
+    "vendor": "",
+    "contact": "",
+    "status": "",
+    "returnStatus": "",
+    "leadTime": "",
+    "deliveryDate": "",
+    "depositAmt": null,
+    "totalAmt": null,
+    "notes": "",
+    "released": false,
+    "releasedDate": null,
+    "pendingReview": false,
+    "userAdded": true,
+    "addedDate": "2026-08-07T20:11:42.666Z",
+    "statusHistory": [
+      {
+        "event": "added",
+        "from": "—",
+        "to": "—",
+        "at": "2026-08-07T20:11:42.666Z"
+      }
+    ],
+    "expectedShipDate": "",
+    "returnChangedDate": null,
+    "orderedDate": null,
+    "updatedDate": "2026-08-07T20:12:08.130Z"
+  },
+  {
+    "id": "usr-msjdnyut",
+    "unit": "8B",
+    "project": "8B",
+    "itemName": "(2) EMtouch",
+    "category": "Interior Door Hardware",
+    "vendor": "RA Graham",
+    "contact": "",
+    "status": "Delivered",
+    "returnStatus": "",
+    "leadTime": "",
+    "deliveryDate": "",
+    "depositAmt": null,
+    "totalAmt": null,
+    "notes": "in upstairs storage (bulk ordered)",
+    "released": false,
+    "releasedDate": null,
+    "pendingReview": false,
+    "userAdded": true,
+    "addedDate": "2026-08-07T20:08:46.133Z",
+    "statusHistory": [
+      {
+        "event": "added",
+        "from": "—",
+        "to": "—",
+        "at": "2026-08-07T20:08:46.133Z"
+      },
+      {
+        "event": "status",
+        "from": "—",
+        "to": "Delivered",
+        "at": "2026-08-20T19:16:15.529Z"
+      }
+    ],
+    "expectedShipDate": "",
+    "statusChangedDate": "2026-08-20T19:16:15.529Z",
+    "returnChangedDate": null,
+    "orderedDate": null,
+    "updatedDate": "2026-08-20T19:16:54.737Z"
+  },
+  {
+    "id": "usr-msjdnim5",
+    "unit": "8A",
+    "project": "8A",
+    "itemName": "(2) EMtouch",
+    "category": "Interior Door Hardware",
+    "vendor": "RA Graham",
+    "contact": "",
+    "status": "Delivered",
+    "returnStatus": "",
+    "leadTime": "",
+    "deliveryDate": "",
+    "depositAmt": null,
+    "totalAmt": null,
+    "notes": "in upstairs storage (bulk ordered)",
+    "released": false,
+    "releasedDate": null,
+    "pendingReview": false,
+    "userAdded": true,
+    "addedDate": "2026-08-07T20:08:25.085Z",
+    "statusHistory": [
+      {
+        "event": "added",
+        "from": "—",
+        "to": "—",
+        "at": "2026-08-07T20:08:25.085Z"
+      },
+      {
+        "event": "status",
+        "from": "—",
+        "to": "Delivered",
+        "at": "2026-08-20T19:16:33.088Z"
+      }
+    ],
+    "expectedShipDate": "",
+    "statusChangedDate": "2026-08-20T19:16:33.088Z",
+    "returnChangedDate": null,
+    "orderedDate": null,
+    "updatedDate": "2026-08-20T19:17:03.250Z"
+  },
+  {
+    "id": "usr-msjb85sy",
+    "unit": "8B",
+    "project": "8B",
+    "itemName": "Added Cabinetry Hardware",
+    "category": "Cabinetry Hardware",
+    "vendor": "Top Knobs",
+    "contact": "",
+    "status": "Ordered",
+    "returnStatus": "",
+    "leadTime": "",
+    "deliveryDate": "",
+    "depositAmt": 51.4,
+    "totalAmt": 51.4,
+    "notes": "",
+    "released": false,
+    "releasedDate": null,
+    "pendingReview": false,
+    "userAdded": true,
+    "addedDate": "2026-08-07T19:00:29.410Z",
+    "statusHistory": [
+      {
+        "event": "added",
+        "from": "—",
+        "to": "—",
+        "at": "2026-08-07T19:00:29.410Z"
+      },
+      {
+        "event": "status",
+        "from": "—",
+        "to": "Ordered",
+        "at": "2026-08-07T19:00:29.410Z"
+      }
+    ],
+    "statusChangedDate": "2026-08-07T19:00:29.410Z",
+    "orderedDate": "2026-08-07T19:00:29.410Z"
+  },
+  {
+    "id": "usr-mshz9jem",
+    "unit": "8A, 8B",
+    "project": "8A, 8B",
+    "itemName": "Closets",
+    "category": "Closets",
+    "vendor": "Boston Closets",
+    "contact": "Bob Farrell",
+    "status": "",
+    "leadTime": "",
+    "deliveryDate": "",
+    "depositAmt": null,
+    "totalAmt": null,
+    "notes": "Needs to template first",
+    "released": false,
+    "releasedDate": null,
+    "pendingReview": false,
+    "userAdded": true,
+    "addedDate": "2026-08-06T20:37:52.126Z",
+    "statusHistory": [
+      {
+        "event": "added",
+        "from": "—",
+        "to": "—",
+        "at": "2026-08-06T20:37:52.126Z"
+      }
+    ],
+    "orderedDate": null,
+    "updatedDate": "2026-08-06T20:38:36.558Z"
+  },
+  {
+    "id": "usr-mshtiwza",
+    "unit": "8A",
+    "project": "8A",
+    "itemName": "Extra tile",
+    "category": "Tile",
+    "vendor": "Best Tile",
+    "contact": "Abigail",
+    "status": "Ordered",
+    "leadTime": "1–2 wks",
+    "deliveryDate": "",
+    "depositAmt": null,
+    "totalAmt": null,
+    "notes": "",
+    "released": false,
+    "releasedDate": null,
+    "pendingReview": false,
+    "userAdded": true,
+    "updatedDate": "2026-08-14T14:32:02.342Z",
+    "returnStatus": "",
+    "expectedShipDate": "2026-08-18",
+    "statusHistory": [
+      {
+        "event": "status",
+        "from": "Quoting",
+        "to": "Ordered",
+        "at": "2026-08-14T14:31:53.829Z"
+      }
+    ],
+    "statusChangedDate": "2026-08-14T14:31:53.829Z",
+    "returnChangedDate": null,
+    "orderedDate": "2026-08-14T14:31:53.829Z",
+    "projectedDelivery": "2026-08-25"
+  },
+  {
+    "id": "usr-msdicnwn",
+    "unit": "8A",
+    "project": "8A",
+    "itemName": "Cabinetry Hardware",
+    "category": "Cabinetry Hardware",
+    "vendor": "Top Knobs",
+    "contact": "",
+    "status": "Delivered",
+    "leadTime": "1-2 Weeks",
+    "deliveryDate": "",
+    "depositAmt": 1450.56,
+    "totalAmt": 1450.56,
+    "notes": "",
+    "released": false,
+    "releasedDate": null,
+    "pendingReview": false,
+    "userAdded": true,
+    "statusHistory": [
+      {
+        "event": "status",
+        "from": "Ordered",
+        "to": "Shipped",
+        "at": "2026-08-04T19:05:00.000Z"
+      },
+      {
+        "event": "status",
+        "from": "Shipped",
+        "to": "Delivered",
+        "at": "2026-08-06T20:13:13.125Z"
+      }
+    ],
+    "statusChangedDate": "2026-08-06T20:13:13.125Z",
+    "orderedDate": null,
+    "updatedDate": "2026-08-06T20:13:13.125Z"
+  },
+  {
+    "id": "usr-ms6k3axy",
+    "unit": "11",
+    "project": "11",
+    "category": "Tile",
+    "vendor": "Best Tile",
+    "contact": "Abigail",
+    "status": "Quoting",
+    "leadTime": "",
+    "deliveryDate": "",
+    "depositAmt": 11499.95,
+    "totalAmt": 11499.95,
+    "notes": "excluding 102 Mudroom, 205 Mudroom and 309 Laundry until a replacement for the Organic Rug Smoke 12x24 is determined.",
+    "released": false,
+    "releasedDate": null,
+    "pendingReview": false,
+    "userAdded": true,
+    "updatedDate": "2026-07-29T20:48:31.631Z"
+  },
+  {
+    "id": "8a-rough-plumbing",
+    "unit": "8A",
+    "category": "Rough Plumbing",
+    "vendor": "Ferguson?",
+    "contact": "",
+    "status": "Delivered",
+    "leadTime": "",
+    "depositAmt": null,
+    "totalAmt": null,
+    "notes": "Onsite / installed",
+    "deliveryDate": "",
+    "released": false,
+    "releasedDate": null
+  },
+  {
+    "id": "8a-tile",
+    "unit": "8A",
+    "category": "Tile",
+    "vendor": "Best Tile",
+    "contact": "",
+    "status": "Delivered",
+    "leadTime": "",
+    "depositAmt": 9758.51,
+    "totalAmt": 9758.51,
+    "notes": "OrdAck 12286386",
+    "deliveryDate": "",
+    "released": false,
+    "releasedDate": null
+  },
+  {
+    "id": "8a-tile-sauna",
+    "unit": "8A",
+    "category": "Tile – Sauna",
+    "vendor": "Best Tile",
+    "contact": "",
+    "status": "Ordered",
+    "leadTime": "2–3 wks",
+    "depositAmt": 1032.55,
+    "totalAmt": 1032.55,
+    "notes": "OrdAck 12303373",
+    "deliveryDate": "",
+    "released": false,
+    "releasedDate": null
+  },
+  {
+    "id": "8a-tile-thresh",
+    "unit": "8A, 8B",
+    "category": "Tile – Thresholds / Niche Shelves, countertops",
+    "vendor": "Cape Cod Counter Works",
+    "contact": "Marco / Ashley Marks",
+    "status": "Quote Approved",
+    "leadTime": "",
+    "depositAmt": 18397.22,
+    "totalAmt": 36794.44,
+    "notes": "Inv. 64787",
+    "deliveryDate": "",
+    "released": false,
+    "releasedDate": null,
+    "project": "8A, 8B",
+    "pendingReview": true,
+    "updatedDate": "2026-07-23T19:18:36.784Z",
+    "statusChangedDate": "2026-07-23T19:18:36.784Z"
+  },
+  {
+    "id": "8a-cabinetry",
+    "unit": "8A",
+    "category": "Cabinetry",
+    "vendor": "",
+    "contact": "Mark Barr",
+    "status": "Ordered",
+    "leadTime": "6–8 wks",
+    "depositAmt": null,
+    "totalAmt": null,
+    "notes": "Exp. delivery 9/1/2026",
+    "deliveryDate": "2026-09-01",
+    "released": false,
+    "releasedDate": null
+  },
+  {
+    "id": "8a-int-doors",
+    "unit": "8A",
+    "category": "Interior Doors",
+    "vendor": "",
+    "contact": "",
+    "status": "",
+    "leadTime": "",
+    "depositAmt": null,
+    "totalAmt": null,
+    "notes": "",
+    "deliveryDate": "",
+    "released": false,
+    "releasedDate": null
+  },
+  {
+    "id": "8a-int-door-hw",
+    "unit": "8A",
+    "category": "Interior Door Hardware",
+    "vendor": "",
+    "contact": "",
+    "status": "",
+    "leadTime": "",
+    "depositAmt": null,
+    "totalAmt": null,
+    "notes": "",
+    "deliveryDate": "",
+    "released": false,
+    "releasedDate": null
+  },
+  {
+    "id": "8a-shower-glass",
+    "unit": "8A",
+    "category": "Shower Glass",
+    "vendor": "Granite State Glass",
+    "contact": "Megan",
+    "status": "Quote Approved",
+    "leadTime": "",
+    "depositAmt": 3235,
+    "totalAmt": 6470,
+    "notes": "Prepped — notify for final measure",
+    "deliveryDate": "",
+    "released": false,
+    "releasedDate": null,
+    "statusChangedDate": "2026-07-23T19:34:34.798Z",
+    "project": "8A",
+    "pendingReview": true,
+    "updatedDate": "2026-07-23T19:34:34.799Z"
+  },
+  {
+    "id": "8a-fin-plumbing",
+    "unit": "8A",
+    "category": "Finish Plumbing",
+    "vendor": "Supply New England",
+    "contact": "Mary",
+    "status": "Delivered",
+    "leadTime": "",
+    "depositAmt": null,
+    "totalAmt": null,
+    "notes": "",
+    "deliveryDate": "2026-07-16",
+    "released": false,
+    "releasedDate": null,
+    "statusChangedDate": "2026-07-23T19:33:37.094Z",
+    "project": "8A",
+    "pendingReview": true,
+    "updatedDate": "2026-07-23T19:33:37.094Z"
+  },
+  {
+    "id": "8a-kitchen-faucet",
+    "unit": "8A",
+    "category": "Kitchen Faucet",
+    "vendor": "",
+    "contact": "",
+    "status": "",
+    "leadTime": "75 days",
+    "depositAmt": null,
+    "totalAmt": null,
+    "notes": "At SNE office 7/31. 75 day lead time",
+    "deliveryDate": "",
+    "released": false,
+    "releasedDate": null,
+    "project": "8A",
+    "itemName": "",
+    "pendingReview": false,
+    "updatedDate": "2026-08-03T17:38:17.811Z"
+  },
+  {
+    "id": "8a-bath-acc",
+    "unit": "8A",
+    "category": "Bath Accessories",
+    "vendor": "Supply New England",
+    "contact": "Mary",
+    "status": "Quote Approved",
+    "leadTime": "",
+    "depositAmt": 1779.91,
+    "totalAmt": 1779.91,
+    "notes": "",
+    "deliveryDate": "",
+    "released": false,
+    "releasedDate": null,
+    "project": "8A",
+    "itemName": "",
+    "pendingReview": false,
+    "statusChangedDate": "2026-08-07T16:46:56.438Z",
+    "statusHistory": [
+      {
+        "event": "status",
+        "from": "—",
+        "to": "Quoting",
+        "at": "2026-08-06T23:13:27.335Z"
+      },
+      {
+        "event": "status",
+        "from": "Quoting",
+        "to": "Quote Approved",
+        "at": "2026-08-07T16:46:56.438Z"
+      }
+    ],
+    "orderedDate": null,
+    "updatedDate": "2026-08-07T16:46:56.438Z"
+  },
+  {
+    "id": "8a-mirrors",
+    "unit": "8A",
+    "category": "Mirrors",
+    "vendor": "",
+    "contact": "",
+    "status": "",
+    "leadTime": "",
+    "depositAmt": null,
+    "totalAmt": null,
+    "notes": "",
+    "deliveryDate": "",
+    "released": false,
+    "releasedDate": null
+  },
+  {
+    "id": "8a-lighting-std",
+    "unit": "8A",
+    "category": "Interior Lighting (Standard)",
+    "vendor": "Visual Comfort",
+    "contact": "Mountain Furniture Co.",
+    "status": "Quoting",
+    "leadTime": "",
+    "depositAmt": null,
+    "totalAmt": null,
+    "notes": "",
+    "deliveryDate": "",
+    "released": false,
+    "releasedDate": null,
+    "project": "8A",
+    "pendingReview": true,
+    "updatedDate": "2026-08-07T19:17:34.545Z",
+    "statusChangedDate": "2026-08-07T19:17:34.545Z",
+    "itemName": "",
+    "returnStatus": "",
+    "expectedShipDate": "",
+    "statusHistory": [
+      {
+        "event": "status",
+        "from": "—",
+        "to": "Quote Approved",
+        "at": "2026-07-23T19:34:59.503Z"
+      },
+      {
+        "event": "status",
+        "from": "Quote Approved",
+        "to": "Quoting",
+        "at": "2026-08-07T19:17:34.545Z"
+      }
+    ],
+    "returnChangedDate": null,
+    "orderedDate": null
+  },
+  {
+    "id": "8a-lighting-islands",
+    "unit": "8A",
+    "category": "Interior Lighting (Island Pendants)",
+    "vendor": "Visual Comfort",
+    "contact": "Mountain Furniture Co.",
+    "status": "",
+    "leadTime": "",
+    "depositAmt": null,
+    "totalAmt": null,
+    "notes": "",
+    "deliveryDate": "",
+    "released": false,
+    "releasedDate": null
+  },
+  {
+    "id": "8a-lighting-bath",
+    "unit": "8A",
+    "category": "Interior Lighting (Bath Sconces)",
+    "vendor": "Visual Comfort",
+    "contact": "Mountain Furniture Co.",
+    "status": "",
+    "leadTime": "",
+    "depositAmt": null,
+    "totalAmt": null,
+    "notes": "",
+    "deliveryDate": "",
+    "released": false,
+    "releasedDate": null
+  },
+  {
+    "id": "8a-fireplace",
+    "unit": "8A",
+    "category": "Fireplace",
+    "vendor": "",
+    "contact": "",
+    "status": "Delivered",
+    "leadTime": "",
+    "depositAmt": null,
+    "totalAmt": null,
+    "notes": "",
+    "deliveryDate": "",
+    "released": false,
+    "releasedDate": null
+  },
+  {
+    "id": "8b-tile",
+    "unit": "8B",
+    "category": "Tile",
+    "vendor": "Best Tile",
+    "contact": "Abigail",
+    "status": "Delivered",
+    "leadTime": "",
+    "depositAmt": 7870.91,
+    "totalAmt": 7870.91,
+    "notes": "OrdAck 12280867",
+    "deliveryDate": "",
+    "released": false,
+    "releasedDate": null
+  },
+  {
+    "id": "8b-tile-sauna",
+    "unit": "8B",
+    "category": "Tile – Sauna",
+    "vendor": "Best Tile",
+    "contact": "Abigail",
+    "status": "Ordered",
+    "leadTime": "4–5 wks",
+    "depositAmt": 357.32,
+    "totalAmt": 357.32,
+    "notes": "OrdAck 12303387",
+    "deliveryDate": "",
+    "released": false,
+    "releasedDate": null
+  },
+  {
+    "id": "8b-cabinetry",
+    "unit": "8B",
+    "category": "Cabinetry",
+    "vendor": "",
+    "contact": "Mark Barr",
+    "status": "Ordered",
+    "leadTime": "6–8 wks",
+    "depositAmt": null,
+    "totalAmt": null,
+    "notes": "Exp. delivery 9/1/2026 · HOLD/payment",
+    "deliveryDate": "2026-09-01",
+    "released": false,
+    "releasedDate": null
+  },
+  {
+    "id": "8b-cab-hardware",
+    "unit": "8B",
+    "category": "Cabinetry Hardware",
+    "vendor": "Top Knobs",
+    "contact": "(Self)",
+    "status": "Shipped",
+    "leadTime": "1-2 weeks",
+    "depositAmt": 1437.92,
+    "totalAmt": 1437.92,
+    "notes": "",
+    "deliveryDate": "",
+    "released": false,
+    "releasedDate": null,
+    "statusChangedDate": "2026-08-05T19:07:00.000Z",
+    "project": "8B",
+    "itemName": "",
+    "pendingReview": false,
+    "updatedDate": "2026-08-06T19:25:55.733Z",
+    "orderedDate": "2026-08-04T20:16:42.664Z",
+    "statusHistory": [
+      {
+        "event": "status",
+        "from": "—",
+        "to": "Ordered",
+        "at": "2026-08-04T20:16:42.664Z"
+      },
+      {
+        "event": "status",
+        "from": "Ordered",
+        "to": "Shipped",
+        "at": "2026-08-05T19:07:00.000Z"
+      }
+    ],
+    "projectedDelivery": "2026-08-15"
+  },
+  {
+    "id": "8b-int-doors",
+    "unit": "8B",
+    "category": "Interior Doors",
+    "vendor": "",
+    "contact": "",
+    "status": "",
+    "leadTime": "",
+    "depositAmt": null,
+    "totalAmt": null,
+    "notes": "",
+    "deliveryDate": "",
+    "released": false,
+    "releasedDate": null
+  },
+  {
+    "id": "8b-int-door-hw",
+    "unit": "8B",
+    "category": "Interior Door Hardware",
+    "vendor": "",
+    "contact": "",
+    "status": "",
+    "leadTime": "",
+    "depositAmt": null,
+    "totalAmt": null,
+    "notes": "",
+    "deliveryDate": "",
+    "released": false,
+    "releasedDate": null
+  },
+  {
+    "id": "8b-shower-glass",
+    "unit": "8B",
+    "category": "Shower Glass",
+    "vendor": "GSG",
+    "contact": "Megan",
+    "status": "Quote Approved",
+    "leadTime": "",
+    "depositAmt": 3235,
+    "totalAmt": 6470,
+    "notes": "Prepped — notify for final measure",
+    "deliveryDate": "",
+    "released": false,
+    "releasedDate": null,
+    "statusChangedDate": "2026-07-23T19:18:40.833Z",
+    "project": "8B",
+    "pendingReview": true,
+    "updatedDate": "2026-07-23T19:20:20.713Z"
+  },
+  {
+    "id": "8b-fin-plumbing",
+    "unit": "8B",
+    "category": "Finish Plumbing",
+    "vendor": "Supply New England",
+    "contact": "Mary",
+    "status": "Delivered",
+    "leadTime": "2 months",
+    "depositAmt": null,
+    "totalAmt": null,
+    "notes": "Most delivered 7/16 · incl. bath accessories",
+    "deliveryDate": "2026-07-16",
+    "released": false,
+    "releasedDate": null,
+    "statusChangedDate": "2026-07-24T17:42:29.013Z",
+    "project": "8B",
+    "pendingReview": true,
+    "updatedDate": "2026-07-24T17:42:29.013Z"
+  },
+  {
+    "id": "8b-bath-acc",
+    "unit": "8B",
+    "category": "Bath Accessories",
+    "vendor": "Supply New England",
+    "contact": "Mary",
+    "status": "Quote Approved",
+    "leadTime": "",
+    "depositAmt": 1779.91,
+    "totalAmt": 1779.91,
+    "notes": "",
+    "deliveryDate": "",
+    "released": false,
+    "releasedDate": null,
+    "project": "8B",
+    "itemName": "",
+    "pendingReview": false,
+    "statusChangedDate": "2026-08-07T16:47:06.007Z",
+    "statusHistory": [
+      {
+        "event": "status",
+        "from": "—",
+        "to": "Quoting",
+        "at": "2026-08-06T23:13:36.007Z"
+      },
+      {
+        "event": "status",
+        "from": "Quoting",
+        "to": "Quote Approved",
+        "at": "2026-08-07T16:47:06.007Z"
+      }
+    ],
+    "orderedDate": null,
+    "updatedDate": "2026-08-07T16:47:06.007Z"
+  },
+  {
+    "id": "8b-mirrors",
+    "unit": "8B",
+    "category": "Mirrors",
+    "vendor": "",
+    "contact": "",
+    "status": "",
+    "leadTime": "",
+    "depositAmt": null,
+    "totalAmt": null,
+    "notes": "",
+    "deliveryDate": "",
+    "released": false,
+    "releasedDate": null
+  },
+  {
+    "id": "8b-lighting-std",
+    "unit": "8B",
+    "category": "Interior Lighting",
+    "vendor": "Visual Comfort",
+    "contact": "Mountain Furniture Co.",
+    "status": "Quote Approved",
+    "leadTime": "",
+    "depositAmt": 5501.12,
+    "totalAmt": 5501.12,
+    "notes": "Nina Huettmann",
+    "deliveryDate": "",
+    "released": false,
+    "releasedDate": null,
+    "statusChangedDate": "2026-07-23T19:18:44.432Z",
+    "project": "8B",
+    "pendingReview": true,
+    "updatedDate": "2026-08-07T19:19:14.539Z",
+    "itemName": "Interior Lighting (Standard), Kitchen Pendants",
+    "returnStatus": "",
+    "expectedShipDate": "",
+    "statusHistory": [
+      {
+        "event": "status",
+        "from": "—",
+        "to": "Quote Approved",
+        "at": "2026-07-23T19:18:44.432Z"
+      }
+    ],
+    "returnChangedDate": null,
+    "orderedDate": null
+  },
+  {
+    "id": "8b-lighting-bath",
+    "unit": "8B",
+    "category": "Interior Lighting (Bath Sconces)",
+    "vendor": "Visual Comfort",
+    "contact": "Mountain Furniture Co.",
+    "status": "",
+    "leadTime": "",
+    "depositAmt": null,
+    "totalAmt": null,
+    "notes": "",
+    "deliveryDate": "",
+    "released": false,
+    "releasedDate": null
+  },
+  {
+    "id": "8b-fireplace",
+    "unit": "8B",
+    "category": "Fireplace",
+    "vendor": "",
+    "contact": "",
+    "status": "Delivered",
+    "leadTime": "",
+    "depositAmt": null,
+    "totalAmt": null,
+    "notes": "",
+    "deliveryDate": "",
+    "released": false,
+    "releasedDate": null
+  },
+  {
+    "id": "8b-fireplace-stone",
+    "unit": "8B",
+    "category": "Fireplace Stone",
+    "vendor": "Genrose Stone",
+    "contact": "Kirsten",
+    "status": "Delivered",
+    "leadTime": "",
+    "depositAmt": 2039.72,
+    "totalAmt": 2039.72,
+    "notes": "Exp. delivery 7/24/2026 · paid via Russ CC",
+    "deliveryDate": "2026-07-24",
+    "released": false,
+    "releasedDate": null,
+    "statusChangedDate": "2026-08-03T17:51:45.648Z",
+    "project": "8B",
+    "itemName": "",
+    "pendingReview": false,
+    "updatedDate": "2026-08-03T17:51:45.648Z"
+  }
+];
+/* SEED_END */
+
+// ── State ─────────────────────────────────────────────────────────
+let items = load();
+
+function load(){
+  // Prefer localStorage (session edits) over SEED, but fall back to SEED
+  let data;
+  try {
+    const stored = JSON.parse(localStorage.getItem(KEY));
+    if (stored && Array.isArray(stored) && stored.length >= SEED.length) data = stored;
+  } catch(e){}
+  if(!data) data = JSON.parse(JSON.stringify(SEED));
+  // Migration: if deposit exists and no full amount, treat deposit as full amount
+  data.forEach(x => { if(x.depositAmt != null && x.totalAmt == null) x.totalAmt = x.depositAmt; });
+  // Backfill: recover a recorded "changed to Ordered" date where present, then compute
+  // the frozen projection from it. No recorded order date OR no lead time → no calculation.
+  data.forEach(x => {
+    if(!x.orderedDate){
+      const od = orderedOnDate(x);
+      if(od) x.orderedDate = od;
+    }
+    computeOrderedProjection(x);
+  });
+  return data;
+}
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(items)); }catch(e){} }
+
+// ── Deposit = Full Amount toggle ──────────────────────────────────
+function toggleDepositFull(){
+  const cb    = document.getElementById('fDepositIsFull');
+  const total = document.getElementById('fTotal');
+  if(cb.checked){
+    total.disabled = true;
+    total.value = '';
+  } else {
+    total.disabled = false;
+  }
+}
+function syncDepositFull(){
+  // no-op; hook kept in case we want to mirror the value in future
+}
+
+// ── "This item is a return" → swap the Status dropdown ────
+// Ticking the box turns the add-form Status field into a Return Status
+// field: same control, return states instead of procurement states.
+const ORDER_STATUSES = ['Quoting','Quote Approved','Ordered','Shipped','Delivered'];
+let _lastOrderStatus = '';   // remembers the normal pick while in return mode
+function toggleReturnMode(){
+  const on    = document.getElementById('fIsReturn').checked;
+  const sel   = document.getElementById('fStatus');
+  const label = document.getElementById('fStatusLabel');
+  if(on){
+    _lastOrderStatus = sel.value;
+    label.textContent = 'Return Status';
+    sel.innerHTML = RETURN_STATUSES.map(s=>`<option>${esc(s)}</option>`).join('');
+    sel.value = 'Need to Return';           // sensible default for a new return
+  } else {
+    label.textContent = 'Status';
+    sel.innerHTML = '<option value="">— Select —</option>' +
+                    ORDER_STATUSES.map(s=>`<option>${esc(s)}</option>`).join('');
+    sel.value = ORDER_STATUSES.includes(_lastOrderStatus) ? _lastOrderStatus : '';
+  }
+}
+
+// ── Add Item ──────────────────────────────────────────────────────
+function addItem(forReview){
+  const project  = document.getElementById('fProject').value.trim();
+  const itemName = document.getElementById('fItemName').value.trim();
+  const category = document.getElementById('fCategory').value.trim();
+  const vendor   = document.getElementById('fVendorNew').value.trim();
+  const contact  = document.getElementById('fContact').value.trim();
+  const isReturn = document.getElementById('fIsReturn').checked;
+  const rawStatus= document.getElementById('fStatus').value;
+  // In return mode the Status dropdown is holding a return state, not a
+  // procurement status — route it to the Returns column instead.
+  const returnStatus = isReturn ? (rawStatus || 'Need to Return') : '';
+  const status   = (forReview || isReturn) ? '' : rawStatus;
+  const leadTime = document.getElementById('fLeadTime').value.trim();
+  const depRaw   = document.getElementById('fDeposit').value;
+  const totRaw      = document.getElementById('fTotal').value;
+  const deliveryDate= document.getElementById('fDelivery').value;
+
+  // require at least one field
+  if(!project && !itemName && !category && !vendor && !contact && !status && !leadTime && !depRaw && !totRaw && !deliveryDate && !isReturn) return;
+
+  const depositIsFull = document.getElementById('fDepositIsFull').checked;
+  const depositAmt = parseAmt(depRaw);
+  const totalAmt   = depositIsFull ? depositAmt : parseAmt(totRaw);
+
+  const newItem = {
+    id: 'usr-' + Date.now().toString(36),
+    unit: project || '',
+    project: project,
+    itemName,
+    category, vendor, contact,
+    status,
+    // "This item is a return" → the Return Status picked in the add form
+    returnStatus,
+    leadTime,
+    deliveryDate,
+    depositAmt, totalAmt,
+    notes: '',
+    released: false,
+    releasedDate: null,
+    pendingReview: !!forReview,
+    userAdded: true
+  };
+  // Record date + time the item was added — as its own event.
+  const addedAt = new Date().toISOString();
+  newItem.addedDate = addedAt;
+  logEvent(newItem, { event: 'added', from: '—', to: '—', at: addedAt });
+  // If it starts with a status, log that as a separate status event.
+  if(status){
+    newItem.statusChangedDate = addedAt;
+    logEvent(newItem, { event: 'status', from: '—', to: status, at: addedAt });
+    // If added straight as Ordered, capture order date + freeze projection
+    markOrdered(newItem, addedAt);
+    computeOrderedProjection(newItem);
+  }
+  // If flagged as a return, stamp that state as its own dated event too.
+  if(returnStatus){
+    newItem.returnChangedDate = addedAt;
+    logEvent(newItem, { event: 'return', from: '—', to: returnStatus, at: addedAt });
+  }
+  items.unshift(newItem);
+
+  save();
+  // clear form
+  ['fProject','fItemName','fCategory','fVendorNew','fContact','fLeadTime','fDeposit','fTotal','fDelivery'].forEach(id=>{
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('fIsReturn').checked = false;
+  _lastOrderStatus = '';
+  toggleReturnMode();                        // restore the normal Status options
+  document.getElementById('fStatus').value = '';
+  document.getElementById('fDepositIsFull').checked = false;
+  document.getElementById('fTotal').disabled = false;
+  document.getElementById('fTotal').value = '';
+  document.getElementById('fCategory').focus();
+  render();
+}
+
+function delItem(id){
+  if(!confirm('Remove this item?')) return;
+  items = items.filter(x=>x.id!==id);
+  save(); render();
+}
+
+// ── Edit Modal ────────────────────────────────────────────────────
+let editingId = null;
+
+function openEdit(id){
+  const item = items.find(x=>x.id===id);
+  if(!item) return;
+  editingId = id;
+
+  // Populate datalists
+  const vendors    = [...new Set(items.map(x=>x.vendor).filter(Boolean))].sort();
+  const projects   = [...new Set(items.flatMap(x=>(x.unit||x.project||'').split(',').map(p=>p.trim())).filter(Boolean))].sort();
+  const categories = [...new Set(items.flatMap(x=>(x.category||'').split(',').map(c=>c.trim())).filter(Boolean))].sort();
+  document.getElementById('eProjectList').innerHTML  = projects.map(v=>`<option value="${esc(v)}">`).join('');
+  document.getElementById('eCategoryList').innerHTML = categories.map(v=>`<option value="${esc(v)}">`).join('');
+  document.getElementById('eVendorList').innerHTML   = vendors.map(v=>`<option value="${esc(v)}">`).join('');
+
+  // Fill fields
+  document.getElementById('e-project').value  = item.unit || item.project || '';
+  document.getElementById('e-itemname').value = item.itemName || '';
+  document.getElementById('e-category').value = item.category || '';
+  document.getElementById('e-vendor').value   = item.vendor || '';
+  document.getElementById('e-contact').value  = item.contact || '';
+  document.getElementById('e-status').value   = item.status || '';
+  document.getElementById('e-return').value   = item.returnStatus || '';
+  document.getElementById('e-leadtime').value = item.leadTime || '';
+  document.getElementById('e-deposit').value   = item.depositAmt != null ? item.depositAmt.toString() : '';
+  document.getElementById('e-total').value     = item.totalAmt   != null ? item.totalAmt.toString()   : '';
+  document.getElementById('e-delivery').value  = item.deliveryDate || '';
+  document.getElementById('e-shipdate').value  = item.expectedShipDate || '';
+  document.getElementById('e-notes').value     = item.notes || '';
+  // Checkbox ON = "show Release to Order button on this row"
+  // Default (pendingReview undefined) = show button, so checkbox starts checked
+  document.getElementById('e-released').checked = (item.pendingReview !== false);
+
+  const parts = [];
+  if(item.addedDate)         parts.push(`Added ${fmtDateTime(item.addedDate)}`);
+  if(item.statusChangedDate) parts.push(`Status "${statusKey(item)||'—'}" set ${fmtDateTime(item.statusChangedDate)}`);
+  if(item.updatedDate)       parts.push(`Last updated ${fmtDateTime(item.updatedDate)}`);
+  const lbl = parts.length
+    ? parts.join(' · ')
+    : item.userAdded ? 'User-added item' : 'Original record';
+  document.getElementById('eUpdatedLabel').textContent = lbl;
+
+  renderHistoryEditor(item);
+  updateShipHint();
+
+  document.getElementById('editModal').classList.add('open');
+  document.getElementById('e-category').focus();
+}
+
+function saveEdit(){
+  const item = items.find(x=>x.id===editingId);
+  if(!item) return;
+
+  const project   = document.getElementById('e-project').value.trim();
+  const newStatus = document.getElementById('e-status').value;
+  const prevKey   = statusKey(item);
+  const prevReturn= returnKey(item);
+  const prevOrderedDate = item.orderedDate || null;
+
+  item.unit      = project;
+  item.project   = project;
+  item.itemName  = document.getElementById('e-itemname').value.trim();
+  item.category  = document.getElementById('e-category').value.trim();
+  item.vendor    = document.getElementById('e-vendor').value.trim();
+  item.contact   = document.getElementById('e-contact').value.trim();
+  item.status    = newStatus;
+  item.returnStatus = document.getElementById('e-return').value;
+  item.leadTime  = document.getElementById('e-leadtime').value.trim();
+  const dep = document.getElementById('e-deposit').value;
+  const tot = document.getElementById('e-total').value;
+  item.depositAmt = parseAmt(dep);
+  item.totalAmt   = parseAmt(tot);
+  item.deliveryDate   = document.getElementById('e-delivery').value;
+  item.expectedShipDate = document.getElementById('e-shipdate').value || '';
+  item.notes          = document.getElementById('e-notes').value.trim();
+  // Release to Order checkbox — explicitly sets whether the button appears
+  item.pendingReview  = document.getElementById('e-released').checked;
+  // If user unchecked, also clear any release state
+  if(!item.pendingReview && !item.released){
+    // nothing extra needed — canRelease will return false
+  }
+  // 1) Apply any date overrides from the Status History list (added date stays fixed)
+  collectHistoryFromModal(item);
+  // 2) If the Status dropdown itself changed, log a new stamped event
+  stampStatusChange(item, prevKey);
+  //    Same for the Returns dropdown — it gets its own dated history entry
+  stampReturnChange(item, prevReturn);
+  // 3) Re-derive added / status-changed / ordered stamps from the edited history
+  reconcileStampsFromHistory(item);
+  // 4) Projection: an order-date override recomputes it; otherwise keep it frozen
+  //    (or compute it now if a lead time was just added to an already-ordered item)
+  if((item.orderedDate || null) !== prevOrderedDate){
+    item.projectedDelivery = item.orderedDate ? projectedDeliveryDate(item.leadTime, item.orderedDate) : null;
+  } else {
+    computeOrderedProjection(item);
+  }
+  item.updatedDate  = new Date().toISOString();
+
+  save();
+  closeEdit();
+  render();
+  showToast('✓ Saved');
+}
+
+function closeEdit(){
+  editingId = null;
+  document.getElementById('editModal').classList.remove('open');
+}
+
+function modalOverlayClick(e){
+  if(e.target === document.getElementById('editModal')) closeEdit();
+}
+
+// ── Actions ───────────────────────────────────────────────────────
+function release(id){
+  const item = items.find(x=>x.id===id);
+  if(!item) return;
+  const prevKey = statusKey(item);
+  item.released = true;
+  item.releasedDate = new Date().toISOString();
+  item.status = item.status || 'Released';
+  item.pendingReview = false;
+  stampStatusChange(item, prevKey);
+  save(); render();
+}
+function undoRelease(id){
+  const item = items.find(x=>x.id===id);
+  if(!item) return;
+  const prevKey = statusKey(item);
+  item.released = false;
+  item.releasedDate = null;
+  // restore status if it was blank before
+  stampStatusChange(item, prevKey);
+  save(); render();
+}
+
+// ── Filters ───────────────────────────────────────────────────────
+function clearFilters(){
+  document.getElementById('filterProject').value = '';
+  document.getElementById('filterStatus').value  = 'all';
+  document.getElementById('filterReturn').value  = 'all';
+  document.getElementById('filterVendor').value  = '';
+  document.getElementById('filterSearch').value  = '';
+  render();
+}
+
+// ── Amount parsing (handles $1,234.56 / 1234.56 / 1234 etc.) ─────
+function parseAmt(s){
+  if(s == null || String(s).trim() === '') return null;
+  const n = parseFloat(String(s).replace(/[$,\s]/g, ''));
+  return isNaN(n) ? null : n;
+}
+
+// ── Toast notification ────────────────────────────────────────────
+let _toastTimer;
+function showToast(msg){
+  const t = document.getElementById('saveToast');
+  t.textContent = msg || '✓ Saved';
+  t.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+
+// ── Helpers ───────────────────────────────────────────────────────
+function fmt(n){ return n!=null ? '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : ''; }
+function esc(s){ return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function fmtDate(iso){ if(!iso) return ''; const d=new Date(iso.slice(0,10)+'T12:00:00'); return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
+function fmtDateTime(iso){ if(!iso) return ''; const d=new Date(iso); return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) + ' ' + d.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}); }
+
+function parseLeadTimeDays(str){
+  if(!str) return null;
+  const s = str.toLowerCase();
+  let m;
+  // "X–Y weeks / wks"
+  m = s.match(/(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*(wk|week)/);
+  if(m) return Math.round(((+m[1] + +m[2]) / 2) * 7);
+  // "X weeks / wks"
+  m = s.match(/(\d+(?:\.\d+)?)\s*(wk|week)/);
+  if(m) return Math.round(+m[1] * 7);
+  // "X–Y days"
+  m = s.match(/(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)\s*day/);
+  if(m) return Math.round((+m[1] + +m[2]) / 2);
+  // "X days"
+  m = s.match(/(\d+(?:\.\d+)?)\s*day/);
+  if(m) return Math.round(+m[1]);
+  // "X months"
+  m = s.match(/(\d+(?:\.\d+)?)\s*month/);
+  if(m) return Math.round(+m[1] * 30);
+  return null;
+}
+
+function projectedDeliveryDate(leadTime, baseISO){
+  const days = parseLeadTimeDays(leadTime);
+  if(days === null) return null;
+  // Date-only values ("2026-08-15") are anchored at local noon so the
+  // day never shifts across a timezone offset.
+  const base = (baseISO && /^\d{4}-\d{2}-\d{2}$/.test(baseISO)) ? baseISO + 'T12:00:00' : baseISO;
+  const d = base ? new Date(base) : new Date();
+  if(isNaN(d)) return null;
+  d.setDate(d.getDate() + days);
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+
+function statusKey(item){
+  if(item.released && !['Ordered','Shipped','Delivered'].includes(item.status)) return 'Released';
+  return item.status || '';
+}
+function pillClass(s){
+  if(s==='Delivered')      return 'delivered';
+  if(s==='Shipped')        return 'shipped';
+  if(s==='Ordered')        return 'ordered';
+  if(s==='Quoting')        return 'quoting';
+  if(s==='Quote Approved') return 'approved';
+  if(s==='Released')       return 'released';
+  return 'pending';
+}
+function pillLabel(item){
+  if(item.released && !['Ordered','Shipped','Delivered'].includes(item.status)) return 'Released';
+  return item.status || '—';
+}
+
+// ── Returns ───────────────────────────────────────────────────────
+const RETURN_STATUSES = ['Need to Return','Return in Progress','Return Processed','Completed'];
+function returnClass(r){
+  if(r==='Need to Return')      return 'ret-need';
+  if(r==='Return in Progress')  return 'ret-progress';
+  if(r==='Return Processed')    return 'ret-processed';
+  if(r==='Completed')           return 'ret-complete';
+  return '';
+}
+function returnKey(item){ return (item && item.returnStatus) || ''; }
+// Stamp + log a change to the Returns state, mirroring stampStatusChange.
+function stampReturnChange(item, prevReturn){
+  const nowKey = returnKey(item);
+  if(nowKey === (prevReturn || '')) return false;
+  const now = new Date().toISOString();
+  item.returnChangedDate = nowKey ? now : null;
+  logEvent(item, { event: 'return', from: prevReturn || '—', to: nowKey || '—', at: now });
+  return true;
+}
+
+function canRelease(item){
+  return item.pendingReview !== false && !item.released && item.status !== 'Ordered' && item.status !== 'Shipped' && item.status !== 'Delivered';
+}
+
+// ── Status-change tracking ────────────────────────────────────────
+// Capture the displayed status BEFORE a mutation, then call this AFTER.
+// Stamps a full date+time on change and appends to an audit history.
+function stampStatusChange(item, prevKey){
+  const nowKey = statusKey(item);
+  if(nowKey === (prevKey || '')) return false;
+  const now = new Date().toISOString();
+  item.statusChangedDate = now;
+  logEvent(item, { event: 'status', from: prevKey || '—', to: nowKey || '—', at: now });
+  return true;
+}
+// Append-only per-item background log of every recorded change
+function logEvent(item, entry){
+  if(!Array.isArray(item.statusHistory)) item.statusHistory = [];
+  item.statusHistory.push(entry);
+}
+// When an item becomes Ordered, freeze its projected delivery to
+// (order date + lead time). Captured once and never recomputed, so it
+// stays fixed through later status changes (e.g. Delivered).
+// Capture the true order date the moment an item becomes Ordered (once).
+function markOrdered(item, at){
+  if(item.status === 'Ordered' && !item.orderedDate) item.orderedDate = at;
+}
+// Freeze projected delivery = recorded order date + lead time. Computed ONCE
+// (never recomputed once set, so editing the lead time later won't move it).
+// No recorded order date OR no parseable lead time → no calculation.
+function computeOrderedProjection(item){
+  if(!item.orderedDate || item.projectedDelivery != null) return;
+  const v = projectedDeliveryDate(item.leadTime, item.orderedDate);
+  if(v != null) item.projectedDelivery = v;
+}
+// ── Expected Ship Date → projected delivery ───────────────────────
+// A user-entered Expected Ship Date is better information than the order
+// date, so when one is present it becomes the base for the projection:
+//   projected delivery = expected ship date + lead time
+// Same status gate as the order-date projection — the item must actually be
+// Ordered / Shipped / Delivered. Unlike the frozen order-date projection this
+// stays live: editing the ship date or the lead time recalculates it.
+const PROJ_STATUSES = ['Ordered','Shipped','Delivered'];
+function shipProjectedDelivery(item){
+  if(!item || !item.expectedShipDate) return null;
+  if(!PROJ_STATUSES.includes(item.status)) return null;
+  return projectedDeliveryDate(item.leadTime, item.expectedShipDate);
+}
+// Live preview under the Expected Ship Date field in the Edit modal.
+function updateShipHint(){
+  const box = document.getElementById('eShipHint');
+  if(!box) return;
+  const ship   = document.getElementById('e-shipdate').value;
+  const lead   = document.getElementById('e-leadtime').value.trim();
+  const status = document.getElementById('e-status').value;
+  if(!ship){ box.innerHTML = ''; return; }
+  if(!PROJ_STATUSES.includes(status)){
+    box.innerHTML = `Saved, but not used for the projection yet — status must be ${PROJ_STATUSES.join(', ')}.`;
+    return;
+  }
+  const proj = projectedDeliveryDate(lead, ship);
+  box.innerHTML = proj
+    ? `Projected delivery → <b>${fmtDate(proj)}</b> (ship date + ${esc(lead)})`
+    : `Add a readable lead time (e.g. “2–3 wks”, “75 days”) to project a delivery date from this.`;
+}
+// The recorded date an item's status was changed to Ordered, if any.
+function orderedOnDate(item){
+  if(Array.isArray(item.statusHistory)){
+    for(let i = item.statusHistory.length - 1; i >= 0; i--){
+      const h = item.statusHistory[i];
+      if(h.event === 'status' && h.to === 'Ordered') return h.at;
+    }
+  }
+  // Fallback: an item whose current status is Ordered — its last status stamp is that change
+  if(item.status === 'Ordered' && item.statusChangedDate) return item.statusChangedDate;
+  return null;
+}
+
+// ── Editable status-history list (in the Edit modal) ──────────────
+// ISO → value for <input type="datetime-local"> (local time, minute precision)
+function toLocalInput(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  if(isNaN(d)) return '';
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+// Build the list shown in the modal. Falls back to synthesizing rows from the
+// stored stamps for legacy items that have no recorded history yet.
+function renderHistoryEditor(item){
+  const box = document.getElementById('eHistoryList');
+  let hist = Array.isArray(item.statusHistory) ? item.statusHistory.slice() : [];
+  if(!hist.length){
+    if(item.addedDate) hist.push({ event:'added', to:'—', at:item.addedDate });
+    const sk = statusKey(item);
+    if(sk) hist.push({ event:'status', from:'—', to:sk, at:item.statusChangedDate || '' });
+  }
+  if(!hist.length){ box.innerHTML = '<div class="hist-empty">No recorded status changes yet.</div>'; return; }
+  box.innerHTML = hist.map(h=>{
+    const attrs = `data-hrow data-event="${esc(h.event||'status')}" data-to="${esc(h.to||'—')}" data-from="${esc(h.from||'—')}" data-at="${esc(h.at||'')}"`;
+    if(h.event === 'added'){
+      const label = (h.to && h.to !== '—') ? `Added as ${esc(h.to)}` : 'Added';
+      return `<div class="hist-row" ${attrs}>
+        <span class="hist-badge">${label}</span>
+        <span class="hist-fixed" title="The date an item was added cannot be changed">${h.at?fmtDateTime(h.at):'—'} · fixed</span>
+      </div>`;
+    }
+    const badge = h.event === 'return'
+      ? `Return: ${esc(h.to||'—')}`
+      : esc(h.to||'—');
+    return `<div class="hist-row" ${attrs}>
+      <span class="hist-badge">${badge}</span>
+      <input type="datetime-local" value="${toLocalInput(h.at)}">
+    </div>`;
+  }).join('');
+}
+// Read the modal rows back into item.statusHistory, applying date overrides.
+// The "added" row keeps its original date (not overridable).
+function collectHistoryFromModal(item){
+  const rows = [...document.querySelectorAll('#eHistoryList [data-hrow]')];
+  if(!rows.length) return;
+  item.statusHistory = rows.map(row=>{
+    const event = row.getAttribute('data-event');
+    const to    = row.getAttribute('data-to') || '—';
+    const from  = row.getAttribute('data-from') || '—';
+    let at = row.getAttribute('data-at') || '';
+    if(event !== 'added'){
+      const inp = row.querySelector('input');
+      if(inp && inp.value){
+        // Keep the exact original timestamp when the minute-level value is unchanged
+        // (datetime-local is minute-precision — avoids a spurious "date changed").
+        at = (at && toLocalInput(at) === inp.value) ? at : new Date(inp.value).toISOString();
+      } else {
+        at = '';
+      }
+    }
+    return { event, from, to, at };
+  }).filter(h => h.at);   // drop rows left without a date
+}
+// Re-derive the stored stamps from the (possibly edited) history.
+function reconcileStampsFromHistory(item){
+  if(!Array.isArray(item.statusHistory)) return;
+  const added = item.statusHistory.find(h => h.event === 'added');
+  if(added && added.at) item.addedDate = added.at;          // fixed — mirrors the "added" row
+  const statusEvents = item.statusHistory.filter(h => h.event === 'status' && h.at)
+                                          .slice().sort((a,b)=> a.at < b.at ? -1 : a.at > b.at ? 1 : 0);
+  if(statusEvents.length) item.statusChangedDate = statusEvents[statusEvents.length-1].at;
+  const returnEvents = item.statusHistory.filter(h => h.event === 'return' && h.at)
+                                          .slice().sort((a,b)=> a.at < b.at ? -1 : a.at > b.at ? 1 : 0);
+  item.returnChangedDate = returnEvents.length && returnKey(item)
+    ? returnEvents[returnEvents.length-1].at : null;
+  let ord = null;
+  for(let k=item.statusHistory.length-1;k>=0;k--){ const h=item.statusHistory[k]; if(h.to==='Ordered' && h.at){ ord=h.at; break; } }
+  item.orderedDate = ord;
+}
+function statusHistoryTooltip(item){
+  const log = item.statusHistory;
+  if(Array.isArray(log) && log.length){
+    return log.map(h => {
+      const label = h.event === 'added'
+        ? (h.to && h.to !== '—' ? `Added as ${h.to}` : 'Added')
+        : h.event === 'return' ? `Return: ${h.to}` : h.to;
+      return `${label}: ${fmtDateTime(h.at)}`;
+    }).join('\n');
+  }
+  return item.statusChangedDate ? `Status changed ${fmtDateTime(item.statusChangedDate)}` : '';
+}
+
+// ── Shared filter — single source of truth used by render() & exportPDF() ──
+function getFilteredList(){
+  const fProject = document.getElementById('filterProject').value;
+  const fStatus  = document.getElementById('filterStatus').value;
+  const fReturn  = document.getElementById('filterReturn').value;
+  const fVendor  = document.getElementById('filterVendor').value;
+  const fSearch  = document.getElementById('filterSearch').value.toLowerCase().trim();
+  return {
+    list: items.filter(item=>{
+      const itemProjects = (item.unit||item.project||'').split(',').map(p=>p.trim());
+      if(fProject && !itemProjects.includes(fProject)) return false;
+      const sk = statusKey(item);
+      if(fStatus === 'Released'       && sk !== 'Released') return false;
+      if(fStatus === 'Quoting'        && item.status !== 'Quoting') return false;
+      if(fStatus === 'Quote Approved' && item.status !== 'Quote Approved') return false;
+      if(fStatus === 'Ordered'        && item.status !== 'Ordered') return false;
+      if(fStatus === 'Shipped'        && item.status !== 'Shipped') return false;
+      if(fStatus === 'Delivered'      && item.status !== 'Delivered') return false;
+      if(fStatus === 'Pending'        && (item.status || item.released)) return false;
+      const rk = returnKey(item);
+      if(fReturn === 'any'  && !rk) return false;
+      if(fReturn === 'none' &&  rk) return false;
+      if(fReturn && !['all','any','none'].includes(fReturn) && rk !== fReturn) return false;
+      if(fVendor && item.vendor !== fVendor) return false;
+      if(fSearch){
+        const hay = [item.unit,item.project,item.itemName,item.category,item.vendor,item.contact,item.notes].filter(Boolean).join(' ').toLowerCase();
+        if(!hay.includes(fSearch)) return false;
+      }
+      return true;
+    }),
+    fProject, fStatus, fVendor, fSearch, fReturn
+  };
+}
+
+// ── Render ────────────────────────────────────────────────────────
+function render(){
+  // Unique values for datalists & dropdowns
+  const vendors   = [...new Set(items.map(x=>x.vendor).filter(Boolean))].sort();
+  const projects  = [...new Set(items.flatMap(x=>(x.unit||x.project||'').split(',').map(p=>p.trim())).filter(Boolean))].sort();
+  const categories= [...new Set(items.flatMap(x=>(x.category||'').split(',').map(c=>c.trim())).filter(Boolean))].sort();
+
+  // Populate form datalists
+  document.getElementById('projectList').innerHTML  = projects.map(v=>`<option value="${esc(v)}">`).join('');
+  document.getElementById('categoryList').innerHTML = categories.map(v=>`<option value="${esc(v)}">`).join('');
+  document.getElementById('vendorList').innerHTML   = vendors.map(v=>`<option value="${esc(v)}">`).join('');
+
+  // Populate project filter dropdown — restore value after innerHTML rebuild
+  // (some browsers reset .value when innerHTML is replaced even with selected attr)
+  const fp = document.getElementById('filterProject');
+  const cp = fp.value;
+  fp.innerHTML = '<option value="">All projects</option>' +
+    projects.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  fp.value = cp; // explicitly restore
+
+  // Populate vendor filter dropdown
+  const fv = document.getElementById('filterVendor');
+  const cv = fv.value;
+  fv.innerHTML = '<option value="">All vendors</option>' +
+    vendors.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  fv.value = cv; // explicitly restore
+
+  const { list, fProject, fStatus, fVendor, fSearch, fReturn } = getFilteredList();
+
+  const rows = document.getElementById('rows');
+  rows.innerHTML = list.map(item=>{
+    const sk  = statusKey(item);
+    const pc  = pillClass(sk);
+    const pl  = pillLabel(item);
+    const isReleased = item.released && !['Ordered','Shipped','Delivered'].includes(item.status);
+    const dep = item.depositAmt != null ? `<span class="amt amt-deposit">${fmt(item.depositAmt)}</span>` : `<span class="muted">—</span>`;
+    const tot = item.totalAmt   != null ? `<span class="amt amt-total">${fmt(item.totalAmt)}</span>`   : `<span class="muted">—</span>`;
+    const projectLabel = item.unit || item.project || '';
+
+    let actionCell = '';
+    if(['Ordered','Shipped','Delivered'].includes(item.status)){
+      actionCell = `<span class="muted small">—</span>`;
+    } else if(isReleased){
+      actionCell = `<span class="pill released pill-released-action">✓ Released</span>${item.releasedDate ? `<span class="rel-date">Released ${fmtDate(item.releasedDate)}</span>` : ''}<button class="btn-undo-release" onclick="undoRelease('${item.id}')" title="Undo release">↩ undo</button>`;
+    } else if(canRelease(item)){
+      actionCell = `<button class="btn-release" onclick="release('${item.id}')">▷ Release to Order</button>`;
+    } else {
+      actionCell = `<span class="muted small">—</span>`;
+    }
+
+    const today = new Date().toISOString().slice(0,10);
+
+    // Projected delivery:
+    //  • Ordered → frozen at order date + lead time (stored, never recomputed)
+    //  • Not yet ordered → today + lead time (a live estimate until ordered)
+    const frozenProj = (item.projectedDelivery && ['Ordered','Shipped','Delivered'].includes(item.status)) ? item.projectedDelivery : null;
+    // An entered Expected Ship Date outranks the frozen order-date projection.
+    const shipProj = shipProjectedDelivery(item);
+    // Live pre-order estimate only once the item has an actual status value —
+    // a blank/pending item with just a lead time gets no calculation yet.
+    const liveEstimate = sk && !['Ordered','Shipped','Delivered'].includes(sk);
+    const projDate = shipProj
+      ? shipProj
+      : (frozenProj
+          ? frozenProj
+          : (liveEstimate ? projectedDeliveryDate(item.leadTime) : null));
+    const projTitle = shipProj
+      ? `Expected ship date ${fmtDate(item.expectedShipDate)} + lead time`
+      : (frozenProj ? 'Order date + lead time (fixed)' : 'Today + lead time');
+    const projOverdue = projDate && projDate < today && item.status !== 'Delivered';
+    const shipLabel = item.expectedShipDate
+      ? `<span class="updated-label" title="Expected ship date">Ships ${fmtDate(item.expectedShipDate)}</span>` : '';
+    const projCell = (projDate
+      ? `<span class="${projOverdue?'overdue':''}" title="${projTitle}">${fmtDate(projDate)}${projOverdue?' ⚠':''}</span>`
+      : '<span class="muted">—</span>') + shipLabel;
+
+    // Delivery due date — red if past today OR if projected delivery overshoots it
+    const projLate = projDate && item.deliveryDate && projDate > item.deliveryDate;
+    const isOverdue = item.deliveryDate && item.status !== 'Delivered' &&
+                      (item.deliveryDate < today || projLate);
+    const deliveryCell = item.deliveryDate
+      ? `<span class="${isOverdue?'overdue':''}" title="${projLate?'Projected delivery exceeds due date':''}">${fmtDate(item.deliveryDate)}${isOverdue?' ⚠':''}</span>`
+      : '<span class="muted">—</span>';
+
+    // Returns — blank until someone sets a return state on the item
+    const rk = returnKey(item);
+    const returnCell = rk
+      ? `<span class="pill ${returnClass(rk)}">${esc(rk)}</span>${item.returnChangedDate ? `<span class="updated-label">${fmtDate(item.returnChangedDate)}</span>` : ''}`
+      : '<span class="muted">—</span>';
+
+    const updatedLabel = item.updatedDate
+      ? `<span class="updated-label">Updated ${fmtDate(item.updatedDate)}</span>` : '';
+
+    return `<tr class="${isReleased?'released-row':''}">
+      <td>${projectLabel ? projectLabel.split(',').map(p=>p.trim()).filter(Boolean).map(p=>`<span class="unit-badge${p==='8B'?' b':''}">${esc(p)}</span>`).join(' ') : '<span class="muted">—</span>'}</td>
+      <td>${esc(item.itemName)||'<span class="muted">—</span>'}</td>
+      <td class="cat-cell">${item.category ? item.category.split(',').map(c=>c.trim()).filter(Boolean).map(c=>`<span class="cat-tag">${esc(c)}</span>`).join(' ') : '<span class="muted">—</span>'}${updatedLabel}</td>
+      <td>${esc(item.vendor)||'<span class="muted">—</span>'}</td>
+      <td>${esc(item.contact)||'<span class="muted">—</span>'}</td>
+      <td><span class="pill ${pc}">${esc(pl)}</span>${item.statusChangedDate ? `<span class="updated-label" title="${esc(statusHistoryTooltip(item))}">${fmtDateTime(item.statusChangedDate)}</span>` : ''}</td>
+      <td>${returnCell}</td>
+      <td class="small">${esc(item.leadTime)||'<span class="muted">—</span>'}</td>
+      <td class="small">${projCell}</td>
+      <td class="small">${deliveryCell}</td>
+      <td class="right">${dep}</td>
+      <td class="right">${tot}</td>
+      <td class="notes-cell">${esc(item.notes)||''}</td>
+      <td>${actionCell}</td>
+      <td style="white-space:nowrap">
+        <button class="btn-edit" title="Edit" onclick="openEdit('${item.id}')">✏</button>
+        <button class="btn-del"  title="Remove" onclick="delItem('${item.id}')">✕</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('emptyMsg').style.display = list.length ? 'none' : 'block';
+
+  const unitLabel = fProject ? `Project ${fProject}` : 'All Projects';
+  const count = list.length;
+  document.getElementById('tableTitle').textContent = `${unitLabel} — ${count} item${count!==1?'s':''}`;
+
+  // Totals bar — based on filtered list
+  // Per item: "contract value" = totalAmt if known, else depositAmt (deposit IS the full cost)
+  const contractVal = x => x.totalAmt != null ? x.totalAmt : (x.depositAmt != null ? x.depositAmt : 0);
+  const totalValue      = list.reduce((s,x) => s + contractVal(x), 0);
+  // "Paid" = contract value of Ordered/Delivered items
+  const totalPaid       = list.filter(x => ['Ordered','Shipped','Delivered'].includes(x.status))
+                              .reduce((s,x) => s + contractVal(x), 0);
+  // "Deposits Outstanding" = deposits owed on items NOT yet ordered/delivered
+  const depsOutstanding = list.filter(x => !['Ordered','Shipped','Delivered'].includes(x.status) && x.depositAmt != null)
+                              .reduce((s,x) => s + (x.depositAmt || 0), 0);
+  const depsOutCount    = list.filter(x => !['Ordered','Shipped','Delivered'].includes(x.status) && x.depositAmt != null).length;
+  const outstanding     = totalValue - totalPaid;
+  const orderedCount    = list.filter(x => ['Ordered','Shipped','Delivered'].includes(x.status)).length;
+  const isFiltered      = fProject || fStatus!=='all' || fVendor || fSearch || (fReturn && fReturn!=='all');
+  const scope = isFiltered ? 'Filtered items' : 'All items';
+
+  document.getElementById('totalsBar').innerHTML = `
+    <div class="tblock">
+      <div class="t-label">Items shown</div>
+      <div class="t-value t-items">${count}</div>
+      <div class="t-sub">${scope}</div>
+    </div>
+    <div class="tblock">
+      <div class="t-label">Paid to Date</div>
+      <div class="t-value t-deposit">${totalPaid>0 ? fmt(totalPaid) : '<span style="color:var(--muted);font-size:16px">—</span>'}</div>
+      <div class="t-sub">${orderedCount} item${orderedCount!==1?'s':''} ordered, shipped or delivered</div>
+    </div>
+    <div class="tblock">
+      <div class="t-label">Deposits Outstanding</div>
+      <div class="t-value" style="color:var(--quoting)">${depsOutstanding>0 ? fmt(depsOutstanding) : '<span style="color:var(--muted);font-size:16px">—</span>'}</div>
+      <div class="t-sub">${depsOutCount} item${depsOutCount!==1?'s':''} with deposit not yet ordered</div>
+    </div>
+    <div class="tblock">
+      <div class="t-label">Total Outstanding</div>
+      <div class="t-value" style="color:var(--quoting)">${outstanding>0 ? fmt(outstanding) : '<span style="color:var(--muted);font-size:16px">—</span>'}</div>
+      <div class="t-sub">Not yet ordered</div>
+    </div>
+    <div class="tblock">
+      <div class="t-label">Running Total</div>
+      <div class="t-value t-full">${totalValue>0 ? fmt(totalValue) : '<span style="color:var(--muted);font-size:16px">—</span>'}</div>
+      <div class="t-sub">All items combined</div>
+    </div>`;
+}
+
+// ── Export / Print PDF ────────────────────────────────────────────
+function exportPDF(){
+  // Use the same shared filter as render() — guaranteed to match what's on screen
+  const { list, fProject, fStatus, fVendor, fSearch, fReturn } = getFilteredList();
+
+  // Totals
+  const contractVal    = x => x.totalAmt != null ? x.totalAmt : (x.depositAmt != null ? x.depositAmt : 0);
+  const totalValue     = list.reduce((s,x) => s + contractVal(x), 0);
+  const totalPaid      = list.filter(x => ['Ordered','Shipped','Delivered'].includes(x.status)).reduce((s,x) => s + contractVal(x), 0);
+  const depsOut        = list.filter(x => !['Ordered','Shipped','Delivered'].includes(x.status) && x.depositAmt != null);
+  const depsOutstanding= depsOut.reduce((s,x) => s + (x.depositAmt||0), 0);
+  const outstanding    = totalValue - totalPaid;
+  const orderedCount   = list.filter(x => ['Ordered','Shipped','Delivered'].includes(x.status)).length;
+  const isFiltered     = fProject || fStatus!=='all' || fVendor || fSearch || (fReturn && fReturn!=='all');
+  const statusLabel    = fStatus && fStatus !== 'all' ? ` · ${fStatus}` : '';
+  const unitLabel      = (fProject ? 'Project '+fProject : 'All Projects') + statusLabel;
+  const printDate      = new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+
+  // Status color helper
+  function sColor(sk){
+    if(sk==='Delivered')      return '#1a8a4a';
+    if(sk==='Ordered')        return '#1565c0';
+    if(sk==='Quoting')        return '#b45309';
+    if(sk==='Quote Approved') return '#0e7490';
+    if(sk==='Released')       return '#1a8a4a';
+    return '#4b5563';
+  }
+  // Returns color helper
+  function rColor(rk){
+    if(rk==='Need to Return')     return '#b91c1c';
+    if(rk==='Return in Progress') return '#b45309';
+    if(rk==='Return Processed')   return '#0369a1';
+    if(rk==='Completed')          return '#1a8a4a';
+    return '#aaaaaa';
+  }
+
+  const rowsHTML = list.map((item,i)=>{
+    const sk = statusKey(item);
+    const pl = pillLabel(item);
+    const projectLabel = (item.unit||item.project||'').split(',').map(p=>p.trim()).filter(Boolean).join(', ') || '—';
+    const dep = item.depositAmt != null ? fmt(item.depositAmt) : '—';
+    const tot = item.totalAmt   != null ? fmt(item.totalAmt)   : '—';
+    const delivery = item.deliveryDate ? fmtDate(item.deliveryDate) : '—';
+    const bg = i%2===0 ? '#fff' : '#f7f9fc';
+    return `<tr style="background:${bg}">
+      <td>${esc(projectLabel)}</td>
+      <td>${esc(item.itemName||'—')}</td>
+      <td style="font-weight:600">${esc(item.category||'—')}</td>
+      <td>${esc(item.vendor||'—')}</td>
+      <td>${esc(item.contact||'—')}</td>
+      <td style="color:${sColor(sk)};font-weight:700">${esc(pl)}</td>
+      <td style="color:${rColor(returnKey(item))};font-weight:${returnKey(item)?700:400}">${esc(returnKey(item)||'—')}</td>
+      <td>${esc(item.leadTime||'—')}</td>
+      <td>${esc(delivery)}</td>
+      <td style="text-align:right;color:#0891b2;font-weight:600">${dep!=='—'?dep:'<span style="color:#aaa">—</span>'}</td>
+      <td style="text-align:right;color:#0f766e;font-weight:600">${tot!=='—'?tot:'<span style="color:#aaa">—</span>'}</td>
+      <td style="color:#6b7684;font-size:10px">${esc(item.notes||'')}</td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html>
+<html><head>
+<meta charset="UTF-8">
+<title>Fireside Procurement Tracker — ${unitLabel}</title>
+<style>
+  *{box-sizing:border-box}
+  body{font-family:"Segoe UI",Arial,sans-serif;font-size:11px;color:#1a2130;margin:0;padding:24px 28px;background:#fff}
+  .ph{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;border-bottom:2.5px solid #1a2a4a;padding-bottom:10px}
+  .ph h1{margin:0;font-size:20px;color:#1a2a4a;letter-spacing:-.01em}
+  .ph .meta{font-size:10.5px;color:#6b7684;margin-top:3px}
+  .ph .dt{font-size:10.5px;color:#6b7684;text-align:right;white-space:nowrap}
+  .totals{display:flex;gap:0;margin-bottom:16px;border:1px solid #dde2ea;border-radius:7px;overflow:hidden}
+  .tb{flex:1;padding:10px 15px;border-right:1px solid #dde2ea}
+  .tb:last-child{border-right:none}
+  .tl{font-size:8.5px;text-transform:uppercase;letter-spacing:.07em;color:#8896a7;font-weight:700;margin-bottom:4px}
+  .tv{font-size:16px;font-weight:700;line-height:1}
+  .ts{font-size:9px;color:#9aacbf;margin-top:3px}
+  table{width:100%;border-collapse:collapse;font-size:10.5px}
+  th{font-size:8.5px;text-transform:uppercase;letter-spacing:.06em;color:#6b7684;background:#f0f2f5;padding:6px 8px;border:1px solid #dde2ea;text-align:left;white-space:nowrap;font-weight:700}
+  td{padding:7px 8px;border:1px solid #e2e6ec;vertical-align:top}
+  .ft{margin-top:14px;font-size:9px;color:#aab8c9;text-align:center;border-top:1px solid #edf0f4;padding-top:10px}
+  @media print{
+    body{padding:10px 14px}
+    @page{margin:12mm 10mm;size:landscape}
+  }
+</style>
+</head><body>
+<div class="ph">
+  <div>
+    <h1>Fireside Procurement Tracker</h1>
+    <div class="meta">${esc(unitLabel)} &nbsp;·&nbsp; ${list.length} item${list.length!==1?'s':''} &nbsp;·&nbsp; ${isFiltered?'Filtered view':'All items'}</div>
+  </div>
+  <div class="dt">Printed ${printDate}</div>
+</div>
+
+<div class="totals">
+  <div class="tb">
+    <div class="tl">Items Shown</div>
+    <div class="tv">${list.length}</div>
+    <div class="ts">${isFiltered?'Filtered':'All'} items</div>
+  </div>
+  <div class="tb">
+    <div class="tl">Paid to Date</div>
+    <div class="tv" style="color:#0891b2">${totalPaid>0?fmt(totalPaid):'—'}</div>
+    <div class="ts">${orderedCount} ordered, shipped or delivered</div>
+  </div>
+  <div class="tb">
+    <div class="tl">Deposits Outstanding</div>
+    <div class="tv" style="color:#b45309">${depsOutstanding>0?fmt(depsOutstanding):'—'}</div>
+    <div class="ts">${depsOut.length} item${depsOut.length!==1?'s':''} with deposit pending</div>
+  </div>
+  <div class="tb">
+    <div class="tl">Total Outstanding</div>
+    <div class="tv" style="color:#b45309">${outstanding>0?fmt(outstanding):'—'}</div>
+    <div class="ts">Not yet ordered</div>
+  </div>
+  <div class="tb">
+    <div class="tl">Running Total</div>
+    <div class="tv" style="color:#0f766e">${totalValue>0?fmt(totalValue):'—'}</div>
+    <div class="ts">All items combined</div>
+  </div>
+</div>
+
+<table>
+  <thead><tr>
+    <th>Project</th><th>Item Name</th><th>Category</th><th>Vendor</th><th>Contact</th>
+    <th>Status</th><th>Returns</th><th>Lead Time</th><th>Delivery Due</th>
+    <th style="text-align:right">Deposit</th>
+    <th style="text-align:right">Full Amount</th>
+    <th>Notes</th>
+  </tr></thead>
+  <tbody>${rowsHTML}</tbody>
+</table>
+
+<div class="ft">Fireside Procurement Tracker &nbsp;·&nbsp; ${printDate}</div>
+<script>window.onload=function(){window.print();}<\/script>
+</body></html>`;
+
+  const win = window.open('','_blank','width=1100,height=750');
+  if(!win){ alert('Pop-up blocked — please allow pop-ups for this page and try again.'); return; }
+  win.document.write(html);
+  win.document.close();
+}
+
+// ── Save File (embeds current data into a new HTML copy) ─────────
+function saveAsFile(){
+  const html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+  const newBlock = '/* SEED_START */\nconst SEED = ' +
+    JSON.stringify(items, null, 2) + ';\n/* SEED_END */';
+  const updated = html.replace(/\/\* SEED_START \*\/[\s\S]*?\/\* SEED_END \*\//, newBlock);
+  const blob = new Blob([updated], {type:'text/html'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'procurement-tracker-' + new Date().toISOString().slice(0,10) + '.html';
+  a.click();
+}
+
+// ── Import JSON backup ────────────────────────────────────────────
+function importData(ev){
+  const file = ev.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e=>{
+    try{
+      const data = JSON.parse(e.target.result);
+      if(!Array.isArray(data)) throw new Error();
+      if(confirm(`Restore ${data.length} items? This replaces your current data.`)){
+        items = data; save(); render();
+      }
+    } catch(err){ alert("Couldn't read that backup file."); }
+    ev.target.value='';
+  };
+  reader.readAsText(file);
+}
+
+// Escape closes the edit modal
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeEdit(); });
+
+// Enter key submits from any form field
+['fProject','fItemName','fCategory','fVendorNew','fContact','fLeadTime','fDeposit','fTotal'].forEach(id=>{
+  document.getElementById(id).addEventListener('keydown', e=>{ if(e.key==='Enter') addItem(); });
+});
+
+render();
+</script>
+
+
+</body></html>
