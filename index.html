@@ -787,8 +787,8 @@ Quote Approved: Aug 7, 2026 12:47 PM">Aug 7, 2026 12:47 PM</span></td>
    The "anon" key is designed to be public and is safe in client code.
    Leave these blank and the page falls back to browser-only storage.
    ───────────────────────────────────────────────────────────────── */
-const SUPABASE_URL      = "";   // e.g. https://abcdefgh.supabase.co
-const SUPABASE_ANON_KEY = "";   // the long "anon / public" key
+const SUPABASE_URL      = "https://lzytonvwoiofehhmiawe.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx6eXRvbnZ3b2lvZmVoaG1pYXdlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM5NzUyNTQsImV4cCI6MjA5OTU1MTI1NH0.kulVhP5-GCqmP6aVQhryt4uaXE5bNhVE9Rs0gRbX0TE";
 const TABLE             = "procurement_items";
 
 const sb = (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase)
@@ -1941,7 +1941,8 @@ function loadLocal(){
 async function cloudLoad(){
   if(!sb) return loadLocal();
   const { data, error } = await sb.from(TABLE).select('id,data');
-  if(error){ setSync('offline', error.message); return loadLocal(); }
+  if(error){ cloudOk = false; setSync('offline', error.message); return loadLocal(); }
+  cloudOk = true;
   if(!data.length){
     const seeded = normalize(JSON.parse(JSON.stringify(SEED)));
     await cloudSync(seeded);
@@ -1950,7 +1951,7 @@ async function cloudLoad(){
   return normalize(data.map(r => r.data));
 }
 
-let syncTimer = null, selfWriteUntil = 0;
+let syncTimer = null, selfWriteUntil = 0, cloudOk = false;
 
 // Optimistic: cache locally right away, push to Supabase on a short debounce.
 function save(){
@@ -2926,6 +2927,10 @@ async function boot(){
   render();
   if(!sb){
     setSync('offline', 'Supabase not configured — edits stay in this browser only');
+    return;
+  }
+  if(!cloudOk){
+    setSync('offline', 'Could not reach the procurement_items table — edits stay in this browser');
     return;
   }
   setSync('ok');
