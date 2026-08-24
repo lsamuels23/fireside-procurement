@@ -252,16 +252,15 @@
   .dep-full-check input[type=checkbox] { width: 13px; height: 13px; cursor: pointer; accent-color: var(--accent); flex-shrink: 0; }
   /* Release-to-order filter toggle */
   .flt-check {
-    display: flex; align-items: center; gap: 7px; cursor: pointer; user-select: none;
-    padding: 8px 12px; border: 1px solid var(--line); border-radius: 7px;
-    background: #fff; font-size: 13px; font-weight: 600; color: var(--text);
-    text-transform: none; letter-spacing: 0; margin-bottom: 0; white-space: nowrap;
+    display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;
+    margin-top: 6px; margin-bottom: 0; font-size: 11.5px; font-weight: 600;
+    color: var(--muted); text-transform: none; letter-spacing: 0; white-space: nowrap;
   }
   .flt-check input[type=checkbox] {
-    width: 15px; height: 15px; cursor: pointer;
+    width: 14px; height: 14px; cursor: pointer;
     accent-color: var(--released); flex-shrink: 0;
   }
-  .flt-check.on { border-color: var(--released); background: var(--released-bg); color: var(--released); }
+  .flt-check.on { color: var(--released); }
 
   input:disabled { background: #f1f3f5 !important; color: #c0c5cc !important; cursor: not-allowed; opacity: 0.6; border-color: #dde1e7 !important; }
 
@@ -421,7 +420,6 @@
           <label>Status</label>
           <select id="filterStatus" onchange="render()">
             <option value="all">All statuses</option>
-            <option value="Released">⬦ Released to Order</option>
             <option value="Quoting">Quoting</option>
             <option value="Quote Approved">Quote Approved</option>
             <option value="Ordered">Ordered</option>
@@ -429,12 +427,9 @@
             <option value="Delivered">Delivered</option>
             <option value="Pending">Pending / TBD</option>
           </select>
-        </div>
-        <div class="field">
-          <label>Release to Order</label>
           <label class="flt-check" id="filterReleasedLabel"
-                 title="Show only items that have been released to order. Combines with the other filters.">
-            <input type="checkbox" id="filterReleased" onchange="render()"> Released only
+                 title="Show only items released to order. Works alongside the Status dropdown.">
+            <input type="checkbox" id="filterReleased" onchange="render()"> Released to Order
           </label>
         </div>
         <div class="field">
@@ -2572,8 +2567,6 @@ function getFilteredList(){
     list: items.filter(item=>{
       const itemProjects = (item.unit||item.project||'').split(',').map(p=>p.trim());
       if(fProject && !itemProjects.includes(fProject)) return false;
-      const sk = statusKey(item);
-      if(fStatus === 'Released'       && sk !== 'Released') return false;
       if(fStatus === 'Quoting'        && item.status !== 'Quoting') return false;
       if(fStatus === 'Quote Approved' && item.status !== 'Quote Approved') return false;
       if(fStatus === 'Ordered'        && item.status !== 'Ordered') return false;
