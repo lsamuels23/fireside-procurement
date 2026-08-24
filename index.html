@@ -259,9 +259,10 @@
   }
   .flt-check input[type=checkbox] {
     width: 15px; height: 15px; cursor: pointer;
-    accent-color: var(--released); flex-shrink: 0;
+    accent-color: #6d28d9; flex-shrink: 0;
   }
-  .flt-check.on { border-color: var(--released); background: var(--released-bg); color: var(--released); }
+  /* Active state echoes the purple Release to Order button it filters on */
+  .flt-check.on { border-color: #c4b5fd; background: #f3eeff; color: #6d28d9; }
 
   input:disabled { background: #f1f3f5 !important; color: #c0c5cc !important; cursor: not-allowed; opacity: 0.6; border-color: #dde1e7 !important; }
 
@@ -433,8 +434,8 @@
         <div class="field">
           <label>Release to Order</label>
           <label class="flt-check" id="filterReleasedLabel"
-                 title="Every item that has been released to order, including ones already Ordered, Shipped or Delivered. The Released status is narrower: released but not yet ordered.">
-            <input type="checkbox" id="filterReleased" onchange="render()"> Released only
+                 title="Show only rows still showing the purple Release to Order button — items awaiting release. Separate from the Released status, which means already released but not yet ordered.">
+            <input type="checkbox" id="filterReleased" onchange="render()"> Awaiting release
           </label>
         </div>
         <div class="field">
@@ -2585,7 +2586,10 @@ function getFilteredList(){
       if(fReturn === 'any'  && !rk) return false;
       if(fReturn === 'none' &&  rk) return false;
       if(fReturn && !['all','any','none'].includes(fReturn) && rk !== fReturn) return false;
-      if(fReleased && !item.released) return false;
+      // Matches exactly the rows showing the purple "▷ Release to Order" button —
+      // i.e. still awaiting release. Distinct from the Released status, which is the
+      // green "✓ Released" pill on items already released but not yet ordered.
+      if(fReleased && !canRelease(item)) return false;
       if(fVendor && item.vendor !== fVendor) return false;
       if(fSearch){
         const hay = [item.unit,item.project,item.itemName,item.category,item.vendor,item.contact,item.notes].filter(Boolean).join(' ').toLowerCase();
@@ -2778,7 +2782,7 @@ function exportPDF(){
   const orderedCount   = list.filter(x => ['Ordered','Shipped','Delivered'].includes(x.status)).length;
   const isFiltered     = fProject || fStatus!=='all' || fVendor || fSearch || (fReturn && fReturn!=='all') || fReleased;
   const statusLabel    = fStatus && fStatus !== 'all' ? ` · ${fStatus}` : '';
-  const releasedLabel  = fReleased ? ' · Released to Order' : '';
+  const releasedLabel  = fReleased ? ' · Awaiting release' : '';
   const unitLabel      = (fProject ? 'Project '+fProject : 'All Projects') + statusLabel + releasedLabel;
   const printDate      = new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
 
