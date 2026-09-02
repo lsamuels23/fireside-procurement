@@ -2804,6 +2804,23 @@ function exportPDF(){
     return '#aaaaaa';
   }
 
+  // Returns column only appears if at least one shown item has a return status
+  const showReturns = list.some(x => returnKey(x));
+
+  const today = new Date().toISOString().slice(0,10);
+  // Projected delivery — same precedence as the on-screen table:
+  // expected ship date + lead time  >  frozen order-date projection  >  live today + lead time
+  function projFor(item){
+    const sk = statusKey(item);
+    const frozenProj = (item.projectedDelivery && ['Ordered','Shipped','Delivered'].includes(item.status)) ? item.projectedDelivery : null;
+    const shipProj   = shipProjectedDelivery(item);
+    const liveEstimate = sk && !['Ordered','Shipped','Delivered'].includes(sk);
+    return shipProj || frozenProj || (liveEstimate ? projectedDeliveryDate(item.leadTime) : null);
+  }
+  // Projected Delivery column only appears if at least one shown item has a projection
+  const showProjected = list.some(x => projFor(x));
+  const OVERDUE = '#c0392b';
+
   const rowsHTML = list.map((item,i)=>{
     const sk = statusKey(item);
     const pl = pillLabel(item);
@@ -2812,6 +2829,20 @@ function exportPDF(){
     const tot = item.totalAmt   != null ? fmt(item.totalAmt)   : '—';
     const delivery = item.deliveryDate ? fmtDate(item.deliveryDate) : '—';
     const bg = i%2===0 ? '#fff' : '#f7f9fc';
+
+    const projDate    = projFor(item);
+    const projOverdue = projDate && projDate < today && item.status !== 'Delivered';
+    // Delivery due date — red if past today OR if projected delivery overshoots it
+    const projLate    = projDate && item.deliveryDate && projDate > item.deliveryDate;
+    const isOverdue   = item.deliveryDate && item.status !== 'Delivered' &&
+                        (item.deliveryDate < today || projLate);
+    const projCell = projDate
+      ? `<span style="${projOverdue?`color:${OVERDUE};font-weight:700`:''}">${fmtDate(projDate)}${projOverdue?' ⚠':''}</span>`
+      : '<span style="color:#aaa">—</span>';
+    const deliveryCell = item.deliveryDate
+      ? `<span style="${isOverdue?`color:${OVERDUE};font-weight:700`:''}">${delivery}${isOverdue?' ⚠':''}</span>`
+      : '<span style="color:#aaa">—</span>';
+
     return `<tr style="background:${bg}">
       <td>${esc(projectLabel)}</td>
       <td>${esc(item.itemName||'—')}</td>
@@ -2819,9 +2850,10 @@ function exportPDF(){
       <td>${esc(item.vendor||'—')}</td>
       <td>${esc(item.contact||'—')}</td>
       <td style="color:${sColor(sk)};font-weight:700">${esc(pl)}</td>
-      <td style="color:${rColor(returnKey(item))};font-weight:${returnKey(item)?700:400}">${esc(returnKey(item)||'—')}</td>
+      ${showReturns ? `<td style="color:${rColor(returnKey(item))};font-weight:${returnKey(item)?700:400}">${esc(returnKey(item)||'—')}</td>` : ''}
       <td>${esc(item.leadTime||'—')}</td>
-      <td>${esc(delivery)}</td>
+      ${showProjected ? `<td>${projCell}</td>` : ''}
+      <td>${deliveryCell}</td>
       <td style="text-align:right;color:#0891b2;font-weight:600">${dep!=='—'?dep:'<span style="color:#aaa">—</span>'}</td>
       <td style="text-align:right;color:#0f766e;font-weight:600">${tot!=='—'?tot:'<span style="color:#aaa">—</span>'}</td>
       <td style="color:#6b7684;font-size:10px">${esc(item.notes||'')}</td>
@@ -2894,7 +2926,7 @@ function exportPDF(){
 <table>
   <thead><tr>
     <th>Project</th><th>Item Name</th><th>Category</th><th>Vendor</th><th>Contact</th>
-    <th>Status</th><th>Returns</th><th>Lead Time</th><th>Delivery Due</th>
+    <th>Status</th>${showReturns ? '<th>Returns</th>' : ''}<th>Lead Time</th>${showProjected ? '<th>Projected Delivery</th>' : ''}<th>Delivery Due</th>
     <th style="text-align:right">Deposit</th>
     <th style="text-align:right">Full Amount</th>
     <th>Notes</th>
