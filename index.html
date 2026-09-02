@@ -125,6 +125,19 @@
     color: var(--muted); white-space: nowrap; background: #fafbfc;
     position: sticky; top: 0;
   }
+  /* SORTABLE HEADERS — arrow is hidden until you hover the column
+     (or it's the column currently sorted, so the state stays readable) */
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { color: var(--text); background: #f2f4f7; }
+  th.sortable.right { text-align: right; }
+  .sort-arrow {
+    display: inline-block; width: 9px; margin-left: 4px;
+    font-size: 9px; line-height: 1; opacity: 0; transition: opacity .12s;
+  }
+  th.sortable:hover .sort-arrow { opacity: .45; }
+  th.sortable.sorted { color: var(--accent); }
+  th.sortable.sorted .sort-arrow { opacity: 1; color: var(--accent); }
+
   tbody tr:hover { background: #fafbfd; }
   tbody tr.released-row { background: inherit; }
   tbody tr.released-row:hover { background: inherit; }
@@ -501,20 +514,20 @@
       <table>
         <thead>
           <tr>
-            <th style="width:80px">Project</th>
-            <th>Item Name</th>
-            <th>Category</th>
-            <th>Vendor</th>
-            <th>Contact</th>
-            <th style="width:110px">Status</th>
-            <th style="width:130px">Returns</th>
-            <th style="width:110px">Lead Time</th>
-            <th style="width:120px">Projected Delivery</th>
-            <th style="width:115px">Delivery Due</th>
-            <th class="right" style="width:130px">Deposit Amount</th>
-            <th class="right" style="width:130px">Full Amount</th>
-            <th style="width:160px">Notes</th>
-            <th style="width:160px">Release to Order</th>
+            <th class="sortable" data-k="project"   onclick="setSort('project')"   style="width:80px">Project<span class="sort-arrow"></span></th>
+            <th class="sortable" data-k="itemName"  onclick="setSort('itemName')">Item Name<span class="sort-arrow"></span></th>
+            <th class="sortable" data-k="category"  onclick="setSort('category')">Category<span class="sort-arrow"></span></th>
+            <th class="sortable" data-k="vendor"    onclick="setSort('vendor')">Vendor<span class="sort-arrow"></span></th>
+            <th class="sortable" data-k="contact"   onclick="setSort('contact')">Contact<span class="sort-arrow"></span></th>
+            <th class="sortable" data-k="status"    onclick="setSort('status')"    style="width:110px">Status<span class="sort-arrow"></span></th>
+            <th class="sortable" data-k="returns"   onclick="setSort('returns')"   style="width:130px">Returns<span class="sort-arrow"></span></th>
+            <th class="sortable" data-k="leadTime"  onclick="setSort('leadTime')"  style="width:110px">Lead Time<span class="sort-arrow"></span></th>
+            <th class="sortable" data-k="projected" onclick="setSort('projected')" style="width:120px">Projected Delivery<span class="sort-arrow"></span></th>
+            <th class="sortable" data-k="delivery"  onclick="setSort('delivery')"  style="width:115px">Delivery Due<span class="sort-arrow"></span></th>
+            <th class="sortable right" data-k="deposit" onclick="setSort('deposit')" style="width:130px">Deposit Amount<span class="sort-arrow"></span></th>
+            <th class="sortable right" data-k="total"   onclick="setSort('total')"   style="width:130px">Full Amount<span class="sort-arrow"></span></th>
+            <th class="sortable" data-k="notes"     onclick="setSort('notes')"     style="width:160px">Notes<span class="sort-arrow"></span></th>
+            <th class="sortable" data-k="release"   onclick="setSort('release')"   style="width:160px">Release to Order<span class="sort-arrow"></span></th>
             <th style="width:36px"></th>
           </tr>
         </thead>
@@ -2561,6 +2574,85 @@ function statusHistoryTooltip(item){
   return item.statusChangedDate ? `Status changed ${fmtDateTime(item.statusChangedDate)}` : '';
 }
 
+// ── Sorting ───────────────────────────────────────────────────────
+// Click a column header to sort: first click ascending, second descending,
+// third clears back to the underlying list order. Blank values always sink
+// to the bottom, whichever direction is active.
+let sortKey = null, sortDir = 1;
+
+// Status sorts along the real pipeline, not alphabetically. Pending / TBD
+// (no status yet) is the first stage, so it ranks ahead of Quoting.
+const STATUS_ORDER = ['','Quoting','Quote Approved','Released','Ordered','Shipped','Delivered'];
+
+// Projected delivery — shared by the sort and the PDF export. Same precedence
+// as the table: expected ship date + lead time > frozen order-date projection
+// > live "today + lead time" estimate for items not yet ordered.
+function projectedFor(item){
+  const sk = statusKey(item);
+  const frozen = (item.projectedDelivery && PROJ_STATUSES.includes(item.status)) ? item.projectedDelivery : null;
+  const ship   = shipProjectedDelivery(item);
+  const live   = sk && !PROJ_STATUSES.includes(sk);
+  return ship || frozen || (live ? projectedDeliveryDate(item.leadTime) : null);
+}
+
+function sortValue(item, key){
+  switch(key){
+    case 'project':   return (item.unit || item.project || '').trim();
+    case 'itemName':  return (item.itemName || '').trim();
+    case 'category':  return (item.category || '').trim();
+    case 'vendor':    return (item.vendor || '').trim();
+    case 'contact':   return (item.contact || '').trim();
+    case 'notes':     return (item.notes || '').trim();
+    // Pipeline position, so Delivered never sorts next to Approved.
+    case 'status':    { const i = STATUS_ORDER.indexOf(statusKey(item)); return i < 0 ? 0 : i; }
+    // Return progression; items with no return state are blank and sink.
+    case 'returns':   { const rk = returnKey(item); return rk ? RETURN_STATUSES.indexOf(rk) : null; }
+    // "6–8 wks" sorts by its length in days, not as text.
+    case 'leadTime':  return parseLeadTimeDays(item.leadTime);
+    // ISO dates compare correctly as strings.
+    case 'projected': return projectedFor(item);
+    case 'delivery':  return item.deliveryDate || null;
+    case 'deposit':   return item.depositAmt != null ? item.depositAmt : null;
+    case 'total':     return item.totalAmt   != null ? item.totalAmt   : null;
+    // Ascending surfaces what still needs action first.
+    case 'release':   return canRelease(item) ? 0
+                           : (item.released && !PROJ_STATUSES.includes(item.status) ? 1 : 2);
+  }
+  return null;
+}
+
+function sortList(list){
+  if(!sortKey) return list;
+  const blank = v => v === null || v === undefined || v === '';
+  return list.slice().sort((a,b)=>{
+    const va = sortValue(a, sortKey), vb = sortValue(b, sortKey);
+    if(blank(va) && blank(vb)) return 0;
+    if(blank(va)) return 1;
+    if(blank(vb)) return -1;
+    if(typeof va === 'number' && typeof vb === 'number') return (va - vb) * sortDir;
+    return String(va).localeCompare(String(vb), undefined, {numeric:true, sensitivity:'base'}) * sortDir;
+  });
+}
+
+function setSort(key){
+  if(sortKey !== key){ sortKey = key; sortDir = 1; }
+  else if(sortDir === 1){ sortDir = -1; }
+  else { sortKey = null; sortDir = 1; }
+  render();
+}
+
+function updateSortIndicators(){
+  document.querySelectorAll('th.sortable').forEach(th=>{
+    const on = th.dataset.k === sortKey;
+    th.classList.toggle('sorted', on);
+    // Unsorted columns keep a dim ▲ on hover — a preview of what one click does.
+    th.querySelector('.sort-arrow').textContent = on ? (sortDir === 1 ? '▲' : '▼') : '▲';
+    th.title = on
+      ? (sortDir === 1 ? 'Sorted ascending — click for descending' : 'Sorted descending — click to clear')
+      : 'Click to sort';
+  });
+}
+
 // ── Shared filter — single source of truth used by render() & exportPDF() ──
 function getFilteredList(){
   const fProject = document.getElementById('filterProject').value;
@@ -2570,7 +2662,7 @@ function getFilteredList(){
   const fSearch  = document.getElementById('filterSearch').value.toLowerCase().trim();
   const fReleased = document.getElementById('filterReleased').checked;
   return {
-    list: items.filter(item=>{
+    list: sortList(items.filter(item=>{
       const itemProjects = (item.unit||item.project||'').split(',').map(p=>p.trim());
       if(fProject && !itemProjects.includes(fProject)) return false;
       // Match the Status dropdown against the status shown on the row (statusKey), so a
@@ -2596,7 +2688,7 @@ function getFilteredList(){
         if(!hay.includes(fSearch)) return false;
       }
       return true;
-    }),
+    })),
     fProject, fStatus, fVendor, fSearch, fReturn, fReleased
   };
 }
@@ -2630,6 +2722,7 @@ function render(){
 
   const { list, fProject, fStatus, fVendor, fSearch, fReturn, fReleased } = getFilteredList();
   document.getElementById('filterReleasedLabel').classList.toggle('on', fReleased);
+  updateSortIndicators();
 
   const rows = document.getElementById('rows');
   rows.innerHTML = list.map(item=>{
@@ -2808,17 +2901,8 @@ function exportPDF(){
   const showReturns = list.some(x => returnKey(x));
 
   const today = new Date().toISOString().slice(0,10);
-  // Projected delivery — same precedence as the on-screen table:
-  // expected ship date + lead time  >  frozen order-date projection  >  live today + lead time
-  function projFor(item){
-    const sk = statusKey(item);
-    const frozenProj = (item.projectedDelivery && ['Ordered','Shipped','Delivered'].includes(item.status)) ? item.projectedDelivery : null;
-    const shipProj   = shipProjectedDelivery(item);
-    const liveEstimate = sk && !['Ordered','Shipped','Delivered'].includes(sk);
-    return shipProj || frozenProj || (liveEstimate ? projectedDeliveryDate(item.leadTime) : null);
-  }
   // Projected Delivery column only appears if at least one shown item has a projection
-  const showProjected = list.some(x => projFor(x));
+  const showProjected = list.some(x => projectedFor(x));
   const OVERDUE = '#c0392b';
 
   const rowsHTML = list.map((item,i)=>{
@@ -2830,7 +2914,7 @@ function exportPDF(){
     const delivery = item.deliveryDate ? fmtDate(item.deliveryDate) : '—';
     const bg = i%2===0 ? '#fff' : '#f7f9fc';
 
-    const projDate    = projFor(item);
+    const projDate    = projectedFor(item);
     const projOverdue = projDate && projDate < today && item.status !== 'Delivered';
     // Delivery due date — red if past today OR if projected delivery overshoots it
     const projLate    = projDate && item.deliveryDate && projDate > item.deliveryDate;
