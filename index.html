@@ -277,6 +277,37 @@
   /* Active state echoes the purple Release to Order button it filters on */
   .flt-check.on { border-color: #c4b5fd; background: #f3eeff; color: #6d28d9; }
 
+  /* Multi-pick dropdown (project filter) — the dot menu from the Task Tracker */
+  .multi { position: relative; }
+  .multi-toggle {
+    width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px;
+    background: #fff; color: var(--text); font-family: inherit; font-size: 13px;
+    font-weight: 400; text-align: left; cursor: pointer;
+  }
+  .multi-toggle:hover { background: #f7f9fc; }
+  .multi-toggle:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .multi-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .multi-caret { color: var(--muted); font-size: 11px; flex-shrink: 0; }
+  .multi-menu {
+    position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; min-width: 100%;
+    max-height: 280px; overflow-y: auto;
+    background: #fff; border: 1px solid var(--line); border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.13); padding: 4px; white-space: nowrap;
+  }
+  .multi-item {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    border: none; background: none; border-radius: 6px; cursor: pointer;
+    font-family: inherit; font-size: 13px; color: var(--text);
+    padding: 7px 12px 7px 8px; font-weight: 500; text-align: left;
+  }
+  .multi-item:hover { background: #f2f5fa; }
+  /* the dot marks what is actually showing in the view */
+  .multi-dot { width: 9px; font-size: 13px; line-height: 1; color: var(--text); visibility: hidden; }
+  .multi-item.on .multi-dot { visibility: visible; }
+  .multi-sep { height: 1px; background: var(--line); margin: 4px 6px; }
+  .multi-empty { padding: 7px 12px 7px 8px; font-size: 12px; color: var(--muted); }
+
   input:disabled { background: #f1f3f5 !important; color: #c0c5cc !important; cursor: not-allowed; opacity: 0.6; border-color: #dde1e7 !important; }
 
   /* STATUS HISTORY EDITOR */
@@ -429,7 +460,15 @@
       <div class="controls">
         <div class="field">
           <label>Project</label>
-          <select id="filterProject" onchange="render()"><option value="">All projects</option><option value="11">11</option><option value="8A">8A</option><option value="8B">8B</option><option value="Fireside">Fireside</option></select>
+          <div class="multi" id="projectFilterWrap">
+            <button type="button" class="multi-toggle" id="projectFilterBtn"
+                    aria-haspopup="true" aria-expanded="false"
+                    title="Pick any mix of projects to show"
+                    onclick="toggleProjectMenu(event)">
+              <span class="multi-label" id="projectFilterLabel">All projects</span><span class="multi-caret">▾</span>
+            </button>
+            <div class="multi-menu" id="projectFilterMenu" hidden></div>
+          </div>
         </div>
         <div class="field">
           <label>Status</label>
@@ -2301,7 +2340,7 @@ function undoRelease(id){
 
 // ── Filters ───────────────────────────────────────────────────────
 function clearFilters(){
-  document.getElementById('filterProject').value = '';
+  projectFilter.clear();
   document.getElementById('filterStatus').value  = 'all';
   document.getElementById('filterReturn').value  = 'all';
   document.getElementById('filterVendor').value  = '';
@@ -2309,6 +2348,71 @@ function clearFilters(){
   document.getElementById('filterReleased').checked = false;
   render();
 }
+
+// ── Project filter (multi-select) ─────────────────────────────────
+// Any mix of projects. Empty means "show them all", and every project that is
+// showing gets a dot in the menu. Picking several is an OR: a row survives if it
+// carries ANY of the dotted projects.
+const projectFilter = new Set();
+let allProjects = [];   // every project present in the data, refreshed by buildProjectMenu()
+
+// Menu order, so the button label and the table title read the same way round.
+function pickedProjects(){ return [...projectFilter].sort(); }
+
+function projectFilterText(){
+  const picked = pickedProjects();
+  if(!picked.length || picked.length === allProjects.length) return 'All projects';
+  if(picked.length <= 2) return picked.join(', ');
+  return picked.length + ' projects';
+}
+// Long form, for the table title and the printed header.
+function projectScopeLabel(ps){
+  if(!ps.length) return 'All Projects';
+  return (ps.length === 1 ? 'Project ' : 'Projects ') + ps.join(', ');
+}
+
+// Rebuilt from the projects actually present in the data on every render().
+function buildProjectMenu(projects){
+  allProjects = projects;
+  // Drop dots for projects that no longer exist — otherwise the filter would empty
+  // the table with nothing on screen to explain why.
+  projectFilter.forEach(p=>{ if(!projects.includes(p)) projectFilter.delete(p); });
+
+  const item = (on, label, call) =>
+    `<button type="button" class="multi-item ${on?'on':''}" onclick="event.stopPropagation();${call}">` +
+    `<span class="multi-dot">●</span>${label}</button>`;
+  document.getElementById('projectFilterMenu').innerHTML =
+    item(!projectFilter.size, 'All projects', 'pickAllProjects()') +
+    `<div class="multi-sep"></div>` +
+    (projects.length
+      ? projects.map(v=>item(projectFilter.has(v), esc(v), `toggleProjectFilter(${esc(JSON.stringify(v))})`)).join('')
+      : `<div class="multi-empty">No projects yet</div>`);
+  document.getElementById('projectFilterLabel').textContent = projectFilterText();
+}
+
+function toggleProjectFilter(p){
+  if(projectFilter.has(p)) projectFilter.delete(p); else projectFilter.add(p);
+  if(projectFilter.size === allProjects.length) projectFilter.clear();   // every project == All
+  render();                                                             // render() rebuilds the menu
+}
+function pickAllProjects(){ projectFilter.clear(); render(); }
+
+function toggleProjectMenu(ev){
+  ev.stopPropagation();
+  const menu = document.getElementById('projectFilterMenu');
+  const show = menu.hidden;
+  menu.hidden = !show;
+  document.getElementById('projectFilterBtn').setAttribute('aria-expanded', String(show));
+}
+function closeProjectMenu(){
+  const menu = document.getElementById('projectFilterMenu');
+  if(menu.hidden) return;
+  menu.hidden = true;
+  document.getElementById('projectFilterBtn').setAttribute('aria-expanded', 'false');
+}
+// the menu stays open while you pick; a click outside or Esc closes it
+document.addEventListener('click', e=>{ if(!e.target.closest('#projectFilterWrap')) closeProjectMenu(); });
+document.addEventListener('keydown', e=>{ if(e.key === 'Escape') closeProjectMenu(); });
 
 // ── Amount parsing (handles $1,234.56 / 1234.56 / 1234 etc.) ─────
 function parseAmt(s){
@@ -2655,7 +2759,7 @@ function updateSortIndicators(){
 
 // ── Shared filter — single source of truth used by render() & exportPDF() ──
 function getFilteredList(){
-  const fProject = document.getElementById('filterProject').value;
+  const fProjects = pickedProjects();
   const fStatus  = document.getElementById('filterStatus').value;
   const fReturn  = document.getElementById('filterReturn').value;
   const fVendor  = document.getElementById('filterVendor').value;
@@ -2664,7 +2768,7 @@ function getFilteredList(){
   return {
     list: sortList(items.filter(item=>{
       const itemProjects = (item.unit||item.project||'').split(',').map(p=>p.trim());
-      if(fProject && !itemProjects.includes(fProject)) return false;
+      if(fProjects.length && !itemProjects.some(p=>fProjects.includes(p))) return false;
       // Match the Status dropdown against the status shown on the row (statusKey), so a
       // released item reads as 'Released' here exactly as its pill does in the table.
       // 'Pending / TBD' means no status at all. Release to Order is a separate axis: that
@@ -2689,7 +2793,7 @@ function getFilteredList(){
       }
       return true;
     })),
-    fProject, fStatus, fVendor, fSearch, fReturn, fReleased
+    fProjects, fStatus, fVendor, fSearch, fReturn, fReleased
   };
 }
 
@@ -2705,13 +2809,8 @@ function render(){
   document.getElementById('categoryList').innerHTML = categories.map(v=>`<option value="${esc(v)}">`).join('');
   document.getElementById('vendorList').innerHTML   = vendors.map(v=>`<option value="${esc(v)}">`).join('');
 
-  // Populate project filter dropdown — restore value after innerHTML rebuild
-  // (some browsers reset .value when innerHTML is replaced even with selected attr)
-  const fp = document.getElementById('filterProject');
-  const cp = fp.value;
-  fp.innerHTML = '<option value="">All projects</option>' +
-    projects.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
-  fp.value = cp; // explicitly restore
+  // Populate the project multi-pick menu
+  buildProjectMenu(projects);
 
   // Populate vendor filter dropdown
   const fv = document.getElementById('filterVendor');
@@ -2720,7 +2819,7 @@ function render(){
     vendors.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
   fv.value = cv; // explicitly restore
 
-  const { list, fProject, fStatus, fVendor, fSearch, fReturn, fReleased } = getFilteredList();
+  const { list, fProjects, fStatus, fVendor, fSearch, fReturn, fReleased } = getFilteredList();
   document.getElementById('filterReleasedLabel').classList.toggle('on', fReleased);
   updateSortIndicators();
 
@@ -2812,7 +2911,7 @@ function render(){
 
   document.getElementById('emptyMsg').style.display = list.length ? 'none' : 'block';
 
-  const unitLabel = fProject ? `Project ${fProject}` : 'All Projects';
+  const unitLabel = projectScopeLabel(fProjects);
   const count = list.length;
   document.getElementById('tableTitle').textContent = `${unitLabel} — ${count} item${count!==1?'s':''}`;
 
@@ -2829,7 +2928,7 @@ function render(){
   const depsOutCount    = list.filter(x => !['Ordered','Shipped','Delivered'].includes(x.status) && x.depositAmt != null).length;
   const outstanding     = totalValue - totalPaid;
   const orderedCount    = list.filter(x => ['Ordered','Shipped','Delivered'].includes(x.status)).length;
-  const isFiltered      = fProject || fStatus!=='all' || fVendor || fSearch || (fReturn && fReturn!=='all') || fReleased;
+  const isFiltered      = fProjects.length || fStatus!=='all' || fVendor || fSearch || (fReturn && fReturn!=='all') || fReleased;
   const scope = isFiltered ? 'Filtered items' : 'All items';
 
   document.getElementById('totalsBar').innerHTML = `
@@ -2863,7 +2962,7 @@ function render(){
 // ── Export / Print PDF ────────────────────────────────────────────
 function exportPDF(){
   // Use the same shared filter as render() — guaranteed to match what's on screen
-  const { list, fProject, fStatus, fVendor, fSearch, fReturn, fReleased } = getFilteredList();
+  const { list, fProjects, fStatus, fVendor, fSearch, fReturn, fReleased } = getFilteredList();
 
   // Totals
   const contractVal    = x => x.totalAmt != null ? x.totalAmt : (x.depositAmt != null ? x.depositAmt : 0);
@@ -2873,10 +2972,10 @@ function exportPDF(){
   const depsOutstanding= depsOut.reduce((s,x) => s + (x.depositAmt||0), 0);
   const outstanding    = totalValue - totalPaid;
   const orderedCount   = list.filter(x => ['Ordered','Shipped','Delivered'].includes(x.status)).length;
-  const isFiltered     = fProject || fStatus!=='all' || fVendor || fSearch || (fReturn && fReturn!=='all') || fReleased;
+  const isFiltered     = fProjects.length || fStatus!=='all' || fVendor || fSearch || (fReturn && fReturn!=='all') || fReleased;
   const statusLabel    = fStatus && fStatus !== 'all' ? ` · ${fStatus}` : '';
   const releasedLabel  = fReleased ? ' · Awaiting release' : '';
-  const unitLabel      = (fProject ? 'Project '+fProject : 'All Projects') + statusLabel + releasedLabel;
+  const unitLabel      = projectScopeLabel(fProjects) + statusLabel + releasedLabel;
   const printDate      = new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
 
   // Status color helper
