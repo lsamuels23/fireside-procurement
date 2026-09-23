@@ -842,6 +842,10 @@ Quote Approved: Aug 7, 2026 12:47 PM">Aug 7, 2026 12:47 PM</span></td>
           <input type="date" id="e-shipdate" oninput="updateShipHint()">
           <div id="eShipHint" class="ship-hint"></div>
         </div>
+        <div class="modal-field full">
+          <label>Expected Delivery <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)">— manual entry (e.g. vendor-confirmed); overrides the calculated projected delivery</span></label>
+          <input type="date" id="e-expdelivery">
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -2230,6 +2234,7 @@ function openEdit(id){
   document.getElementById('e-total').value     = item.totalAmt   != null ? item.totalAmt.toString()   : '';
   document.getElementById('e-delivery').value  = item.deliveryDate || '';
   document.getElementById('e-shipdate').value  = item.expectedShipDate || '';
+  document.getElementById('e-expdelivery').value = item.expectedDelivery || '';
   document.getElementById('e-notes').value     = item.notes || '';
   // Checkbox ON = "show Release to Order button on this row"
   // Default (pendingReview undefined) = show button, so checkbox starts checked
@@ -2276,6 +2281,7 @@ function saveEdit(){
   item.totalAmt   = parseAmt(tot);
   item.deliveryDate   = document.getElementById('e-delivery').value;
   item.expectedShipDate = document.getElementById('e-shipdate').value || '';
+  item.expectedDelivery = document.getElementById('e-expdelivery').value || '';
   item.notes          = document.getElementById('e-notes').value.trim();
   // Release to Order checkbox — explicitly sets whether the button appears
   item.pendingReview  = document.getElementById('e-released').checked;
@@ -2689,9 +2695,11 @@ let sortKey = null, sortDir = 1;
 const STATUS_ORDER = ['','Quoting','Quote Approved','Released','Ordered','Shipped','Delivered'];
 
 // Projected delivery — shared by the sort and the PDF export. Same precedence
-// as the table: expected ship date + lead time > frozen order-date projection
-// > live "today + lead time" estimate for items not yet ordered.
+// as the table: manual Expected Delivery > expected ship date + lead time >
+// frozen order-date projection > live "today + lead time" estimate for items
+// not yet ordered.
 function projectedFor(item){
+  if(item.expectedDelivery) return item.expectedDelivery;
   const sk = statusKey(item);
   const frozen = (item.projectedDelivery && PROJ_STATUSES.includes(item.status)) ? item.projectedDelivery : null;
   const ship   = shipProjectedDelivery(item);
@@ -2855,16 +2863,24 @@ function render(){
     // Live pre-order estimate only once the item has an actual status value —
     // a blank/pending item with just a lead time gets no calculation yet.
     const liveEstimate = sk && !['Ordered','Shipped','Delivered'].includes(sk);
-    const projDate = shipProj
+    // A manually entered Expected Delivery outranks every calculation.
+    const manualProj = item.expectedDelivery || null;
+    const projDate = manualProj
+      ? manualProj
+      : shipProj
       ? shipProj
       : (frozenProj
           ? frozenProj
           : (liveEstimate ? projectedDeliveryDate(item.leadTime) : null));
-    const projTitle = shipProj
+    const projTitle = manualProj
+      ? 'Expected delivery (entered manually)'
+      : shipProj
       ? `Expected ship date ${fmtDate(item.expectedShipDate)} + lead time`
       : (frozenProj ? 'Order date + lead time (fixed)' : 'Today + lead time');
     const projOverdue = projDate && projDate < today && item.status !== 'Delivered';
-    const shipLabel = item.expectedShipDate
+    const shipLabel = manualProj
+      ? `<span class="updated-label" title="Entered manually">Expected</span>`
+      : item.expectedShipDate
       ? `<span class="updated-label" title="Expected ship date">Ships ${fmtDate(item.expectedShipDate)}</span>` : '';
     const projCell = (projDate
       ? `<span class="${projOverdue?'overdue':''}" title="${projTitle}">${fmtDate(projDate)}${projOverdue?' ⚠':''}</span>`
