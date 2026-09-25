@@ -20,6 +20,8 @@
     --ordered-bg: #e3eeff;
     --shipped: #7c3aed;
     --shipped-bg: #f1ebfe;
+    --transit: #4338ca;
+    --transit-bg: #e8e9fd;
     --quoting: #b45309;
     --quoting-bg: #fef3e2;
     --released: #1a8a4a;
@@ -157,6 +159,7 @@
   .pill.delivered { background: var(--delivered-bg); color: var(--delivered); }
   .pill.ordered   { background: var(--ordered-bg);   color: var(--ordered); }
   .pill.shipped   { background: var(--shipped-bg);   color: var(--shipped); }
+  .pill.transit   { background: var(--transit-bg);   color: var(--transit); }
   .pill.quoting   { background: var(--quoting-bg);   color: var(--quoting); }
   .pill.released  { background: var(--released-bg);  color: var(--released); }
   .pill-released-action { background: #e6f5ec; color: #1a8a4a; font-size: 12px; padding: 5px 12px; }
@@ -424,7 +427,7 @@
         </div>
         <div>
           <label for="fStatus" id="fStatusLabel">Status</label>
-          <select id="fStatus"><option value="">— Select —</option><option>Quoting</option><option>Quote Approved</option><option>Ordered</option><option>Shipped</option><option>Delivered</option></select>
+          <select id="fStatus"><option value="">— Select —</option><option>Quoting</option><option>Quote Approved</option><option>Ordered</option><option>Shipped</option><option>In Transit</option><option>Delivered</option></select>
           <label class="dep-full-check" title="Switches the Status dropdown to the return states and adds the item to the Returns column"><input type="checkbox" id="fIsReturn" onchange="toggleReturnMode()"> This item is a return</label>
         </div>
         <div>
@@ -479,6 +482,7 @@
             <option value="Released">Released</option>
             <option value="Ordered">Ordered</option>
             <option value="Shipped">Shipped</option>
+            <option value="In Transit">In Transit</option>
             <option value="Delivered">Delivered</option>
             <option value="Pending">Pending / TBD</option>
           </select>
@@ -781,6 +785,7 @@ Quote Approved: Aug 7, 2026 12:47 PM">Aug 7, 2026 12:47 PM</span></td>
             <option>Quote Approved</option>
             <option>Ordered</option>
             <option>Shipped</option>
+            <option>In Transit</option>
             <option>Delivered</option>
           </select>
         </div>
@@ -2102,7 +2107,7 @@ function syncDepositFull(){
 // ── "This item is a return" → swap the Status dropdown ────
 // Ticking the box turns the add-form Status field into a Return Status
 // field: same control, return states instead of procurement states.
-const ORDER_STATUSES = ['Quoting','Quote Approved','Ordered','Shipped','Delivered'];
+const ORDER_STATUSES = ['Quoting','Quote Approved','Ordered','Shipped','In Transit','Delivered'];
 let _lastOrderStatus = '';   // remembers the normal pick while in return mode
 function toggleReturnMode(){
   const on    = document.getElementById('fIsReturn').checked;
@@ -2479,12 +2484,13 @@ function projectedDeliveryDate(leadTime, baseISO){
 }
 
 function statusKey(item){
-  if(item.released && !['Ordered','Shipped','Delivered'].includes(item.status)) return 'Released';
+  if(item.released && !['Ordered','Shipped','In Transit','Delivered'].includes(item.status)) return 'Released';
   return item.status || '';
 }
 function pillClass(s){
   if(s==='Delivered')      return 'delivered';
   if(s==='Shipped')        return 'shipped';
+  if(s==='In Transit')     return 'transit';
   if(s==='Ordered')        return 'ordered';
   if(s==='Quoting')        return 'quoting';
   if(s==='Quote Approved') return 'approved';
@@ -2492,7 +2498,7 @@ function pillClass(s){
   return 'pending';
 }
 function pillLabel(item){
-  if(item.released && !['Ordered','Shipped','Delivered'].includes(item.status)) return 'Released';
+  if(item.released && !['Ordered','Shipped','In Transit','Delivered'].includes(item.status)) return 'Released';
   return item.status || '—';
 }
 
@@ -2517,7 +2523,7 @@ function stampReturnChange(item, prevReturn){
 }
 
 function canRelease(item){
-  return item.pendingReview !== false && !item.released && item.status !== 'Ordered' && item.status !== 'Shipped' && item.status !== 'Delivered';
+  return item.pendingReview !== false && !item.released && item.status !== 'Ordered' && item.status !== 'Shipped' && item.status !== 'In Transit' && item.status !== 'Delivered';
 }
 
 // ── Status-change tracking ────────────────────────────────────────
@@ -2558,7 +2564,7 @@ function computeOrderedProjection(item){
 // Same status gate as the order-date projection — the item must actually be
 // Ordered / Shipped / Delivered. Unlike the frozen order-date projection this
 // stays live: editing the ship date or the lead time recalculates it.
-const PROJ_STATUSES = ['Ordered','Shipped','Delivered'];
+const PROJ_STATUSES = ['Ordered','Shipped','In Transit','Delivered'];
 function shipProjectedDelivery(item){
   if(!item || !item.expectedShipDate) return null;
   if(!PROJ_STATUSES.includes(item.status)) return null;
@@ -2692,7 +2698,7 @@ let sortKey = null, sortDir = 1;
 
 // Status sorts along the real pipeline, not alphabetically. Pending / TBD
 // (no status yet) is the first stage, so it ranks ahead of Quoting.
-const STATUS_ORDER = ['','Quoting','Quote Approved','Released','Ordered','Shipped','Delivered'];
+const STATUS_ORDER = ['','Quoting','Quote Approved','Released','Ordered','Shipped','In Transit','Delivered'];
 
 // Projected delivery — shared by the sort and the PDF export. Same precedence
 // as the table: manual Expected Delivery > expected ship date + lead time >
@@ -2836,13 +2842,13 @@ function render(){
     const sk  = statusKey(item);
     const pc  = pillClass(sk);
     const pl  = pillLabel(item);
-    const isReleased = item.released && !['Ordered','Shipped','Delivered'].includes(item.status);
+    const isReleased = item.released && !['Ordered','Shipped','In Transit','Delivered'].includes(item.status);
     const dep = item.depositAmt != null ? `<span class="amt amt-deposit">${fmt(item.depositAmt)}</span>` : `<span class="muted">—</span>`;
     const tot = item.totalAmt   != null ? `<span class="amt amt-total">${fmt(item.totalAmt)}</span>`   : `<span class="muted">—</span>`;
     const projectLabel = item.unit || item.project || '';
 
     let actionCell = '';
-    if(['Ordered','Shipped','Delivered'].includes(item.status)){
+    if(['Ordered','Shipped','In Transit','Delivered'].includes(item.status)){
       actionCell = `<span class="muted small">—</span>`;
     } else if(isReleased){
       actionCell = `<span class="pill released pill-released-action">✓ Released</span>${item.releasedDate ? `<span class="rel-date">Released ${fmtDate(item.releasedDate)}</span>` : ''}<button class="btn-undo-release" onclick="undoRelease('${item.id}')" title="Undo release">↩ undo</button>`;
@@ -2857,12 +2863,12 @@ function render(){
     // Projected delivery:
     //  • Ordered → frozen at order date + lead time (stored, never recomputed)
     //  • Not yet ordered → today + lead time (a live estimate until ordered)
-    const frozenProj = (item.projectedDelivery && ['Ordered','Shipped','Delivered'].includes(item.status)) ? item.projectedDelivery : null;
+    const frozenProj = (item.projectedDelivery && ['Ordered','Shipped','In Transit','Delivered'].includes(item.status)) ? item.projectedDelivery : null;
     // An entered Expected Ship Date outranks the frozen order-date projection.
     const shipProj = shipProjectedDelivery(item);
     // Live pre-order estimate only once the item has an actual status value —
     // a blank/pending item with just a lead time gets no calculation yet.
-    const liveEstimate = sk && !['Ordered','Shipped','Delivered'].includes(sk);
+    const liveEstimate = sk && !['Ordered','Shipped','In Transit','Delivered'].includes(sk);
     // A manually entered Expected Delivery outranks every calculation.
     const manualProj = item.expectedDelivery || null;
     const projDate = manualProj
@@ -2936,14 +2942,14 @@ function render(){
   const contractVal = x => x.totalAmt != null ? x.totalAmt : (x.depositAmt != null ? x.depositAmt : 0);
   const totalValue      = list.reduce((s,x) => s + contractVal(x), 0);
   // "Paid" = contract value of Ordered/Delivered items
-  const totalPaid       = list.filter(x => ['Ordered','Shipped','Delivered'].includes(x.status))
+  const totalPaid       = list.filter(x => ['Ordered','Shipped','In Transit','Delivered'].includes(x.status))
                               .reduce((s,x) => s + contractVal(x), 0);
   // "Deposits Outstanding" = deposits owed on items NOT yet ordered/delivered
-  const depsOutstanding = list.filter(x => !['Ordered','Shipped','Delivered'].includes(x.status) && x.depositAmt != null)
+  const depsOutstanding = list.filter(x => !['Ordered','Shipped','In Transit','Delivered'].includes(x.status) && x.depositAmt != null)
                               .reduce((s,x) => s + (x.depositAmt || 0), 0);
-  const depsOutCount    = list.filter(x => !['Ordered','Shipped','Delivered'].includes(x.status) && x.depositAmt != null).length;
+  const depsOutCount    = list.filter(x => !['Ordered','Shipped','In Transit','Delivered'].includes(x.status) && x.depositAmt != null).length;
   const outstanding     = totalValue - totalPaid;
-  const orderedCount    = list.filter(x => ['Ordered','Shipped','Delivered'].includes(x.status)).length;
+  const orderedCount    = list.filter(x => ['Ordered','Shipped','In Transit','Delivered'].includes(x.status)).length;
   const isFiltered      = fProjects.length || fStatus!=='all' || fVendor || fSearch || (fReturn && fReturn!=='all') || fReleased;
   const scope = isFiltered ? 'Filtered items' : 'All items';
 
@@ -2983,11 +2989,11 @@ function exportPDF(){
   // Totals
   const contractVal    = x => x.totalAmt != null ? x.totalAmt : (x.depositAmt != null ? x.depositAmt : 0);
   const totalValue     = list.reduce((s,x) => s + contractVal(x), 0);
-  const totalPaid      = list.filter(x => ['Ordered','Shipped','Delivered'].includes(x.status)).reduce((s,x) => s + contractVal(x), 0);
-  const depsOut        = list.filter(x => !['Ordered','Shipped','Delivered'].includes(x.status) && x.depositAmt != null);
+  const totalPaid      = list.filter(x => ['Ordered','Shipped','In Transit','Delivered'].includes(x.status)).reduce((s,x) => s + contractVal(x), 0);
+  const depsOut        = list.filter(x => !['Ordered','Shipped','In Transit','Delivered'].includes(x.status) && x.depositAmt != null);
   const depsOutstanding= depsOut.reduce((s,x) => s + (x.depositAmt||0), 0);
   const outstanding    = totalValue - totalPaid;
-  const orderedCount   = list.filter(x => ['Ordered','Shipped','Delivered'].includes(x.status)).length;
+  const orderedCount   = list.filter(x => ['Ordered','Shipped','In Transit','Delivered'].includes(x.status)).length;
   const isFiltered     = fProjects.length || fStatus!=='all' || fVendor || fSearch || (fReturn && fReturn!=='all') || fReleased;
   const statusLabel    = fStatus && fStatus !== 'all' ? ` · ${fStatus}` : '';
   const releasedLabel  = fReleased ? ' · Awaiting release' : '';
@@ -2997,8 +3003,10 @@ function exportPDF(){
   // Status color helper
   function sColor(sk){
     if(sk==='Delivered')      return '#1a8a4a';
+    if(sk==='In Transit')     return '#4338ca';
+    if(sk==='Shipped')        return '#7c3aed';
     if(sk==='Ordered')        return '#1565c0';
-    if(sk==='Quoting')        return '#b45309';
+    if(sk==='Quoting')       return '#b45309';
     if(sk==='Quote Approved') return '#0e7490';
     if(sk==='Released')       return '#1a8a4a';
     return '#4b5563';
