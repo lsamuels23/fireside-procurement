@@ -510,6 +510,10 @@
           <label>Vendor</label>
           <select id="filterVendor" onchange="render()"><option value="">All vendors</option><option value="Best Tile">Best Tile</option><option value="Boston Closets">Boston Closets</option><option value="CED Gilford">CED Gilford</option><option value="Cape Cod Counter Works">Cape Cod Counter Works</option><option value="Ferguson?">Ferguson?</option><option value="Firepit Art">Firepit Art</option><option value="GSG">GSG</option><option value="Genrose Stone">Genrose Stone</option><option value="Granite State Glass">Granite State Glass</option><option value="NH Thinstone">NH Thinstone</option><option value="RA Graham">RA Graham</option><option value="Supply New England">Supply New England</option><option value="Top Knobs">Top Knobs</option><option value="Visual Comfort">Visual Comfort</option></select>
         </div>
+        <div class="field">
+          <label>Contact</label>
+          <select id="filterContact" onchange="render()"><option value="">All contacts</option></select>
+        </div>
         <div class="field" style="flex:1; min-width:180px;">
           <label>Search</label>
           <input type="text" id="filterSearch" placeholder="Category, vendor, contact…" oninput="render()">
@@ -2355,6 +2359,7 @@ function clearFilters(){
   document.getElementById('filterStatus').value  = 'all';
   document.getElementById('filterReturn').value  = 'all';
   document.getElementById('filterVendor').value  = '';
+  document.getElementById('filterContact').value = '';
   document.getElementById('filterSearch').value  = '';
   document.getElementById('filterReleased').checked = false;
   render();
@@ -2777,6 +2782,7 @@ function getFilteredList(){
   const fStatus  = document.getElementById('filterStatus').value;
   const fReturn  = document.getElementById('filterReturn').value;
   const fVendor  = document.getElementById('filterVendor').value;
+  const fContact = document.getElementById('filterContact').value;
   const fSearch  = document.getElementById('filterSearch').value.toLowerCase().trim();
   const fReleased = document.getElementById('filterReleased').checked;
   return {
@@ -2801,13 +2807,14 @@ function getFilteredList(){
       // green "✓ Released" pill on items already released but not yet ordered.
       if(fReleased && !canRelease(item)) return false;
       if(fVendor && item.vendor !== fVendor) return false;
+      if(fContact && item.contact !== fContact) return false;
       if(fSearch){
         const hay = [item.unit,item.project,item.itemName,item.category,item.vendor,item.contact,item.notes].filter(Boolean).join(' ').toLowerCase();
         if(!hay.includes(fSearch)) return false;
       }
       return true;
     })),
-    fProjects, fStatus, fVendor, fSearch, fReturn, fReleased
+    fProjects, fStatus, fVendor, fContact, fSearch, fReturn, fReleased
   };
 }
 
@@ -2815,6 +2822,7 @@ function getFilteredList(){
 function render(){
   // Unique values for datalists & dropdowns
   const vendors   = [...new Set(items.map(x=>x.vendor).filter(Boolean))].sort();
+  const contacts  = [...new Set(items.map(x=>x.contact).filter(Boolean))].sort();
   const projects  = [...new Set(items.flatMap(x=>(x.unit||x.project||'').split(',').map(p=>p.trim())).filter(Boolean))].sort();
   const categories= [...new Set(items.flatMap(x=>(x.category||'').split(',').map(c=>c.trim())).filter(Boolean))].sort();
 
@@ -2833,7 +2841,14 @@ function render(){
     vendors.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
   fv.value = cv; // explicitly restore
 
-  const { list, fProjects, fStatus, fVendor, fSearch, fReturn, fReleased } = getFilteredList();
+  // Populate contact filter dropdown
+  const fc = document.getElementById('filterContact');
+  const cc = fc.value;
+  fc.innerHTML = '<option value="">All contacts</option>' +
+    contacts.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+  fc.value = cc;
+
+  const { list, fProjects, fStatus, fVendor, fContact, fSearch, fReturn, fReleased } = getFilteredList();
   document.getElementById('filterReleasedLabel').classList.toggle('on', fReleased);
   updateSortIndicators();
 
@@ -2950,7 +2965,7 @@ function render(){
   const depsOutCount    = list.filter(x => !['Ordered','Shipped','In Transit','Delivered'].includes(x.status) && x.depositAmt != null).length;
   const outstanding     = totalValue - totalPaid;
   const orderedCount    = list.filter(x => ['Ordered','Shipped','In Transit','Delivered'].includes(x.status)).length;
-  const isFiltered      = fProjects.length || fStatus!=='all' || fVendor || fSearch || (fReturn && fReturn!=='all') || fReleased;
+  const isFiltered      = fProjects.length || fStatus!=='all' || fVendor || fContact || fSearch || (fReturn && fReturn!=='all') || fReleased;
   const scope = isFiltered ? 'Filtered items' : 'All items';
 
   document.getElementById('totalsBar').innerHTML = `
@@ -2984,7 +2999,7 @@ function render(){
 // ── Export / Print PDF ────────────────────────────────────────────
 function exportPDF(){
   // Use the same shared filter as render() — guaranteed to match what's on screen
-  const { list, fProjects, fStatus, fVendor, fSearch, fReturn, fReleased } = getFilteredList();
+  const { list, fProjects, fStatus, fVendor, fContact, fSearch, fReturn, fReleased } = getFilteredList();
 
   // Totals
   const contractVal    = x => x.totalAmt != null ? x.totalAmt : (x.depositAmt != null ? x.depositAmt : 0);
@@ -2994,7 +3009,7 @@ function exportPDF(){
   const depsOutstanding= depsOut.reduce((s,x) => s + (x.depositAmt||0), 0);
   const outstanding    = totalValue - totalPaid;
   const orderedCount   = list.filter(x => ['Ordered','Shipped','In Transit','Delivered'].includes(x.status)).length;
-  const isFiltered     = fProjects.length || fStatus!=='all' || fVendor || fSearch || (fReturn && fReturn!=='all') || fReleased;
+  const isFiltered     = fProjects.length || fStatus!=='all' || fVendor || fContact || fSearch || (fReturn && fReturn!=='all') || fReleased;
   const statusLabel    = fStatus && fStatus !== 'all' ? ` · ${fStatus}` : '';
   const releasedLabel  = fReleased ? ' · Awaiting release' : '';
   const unitLabel      = projectScopeLabel(fProjects) + statusLabel + releasedLabel;
