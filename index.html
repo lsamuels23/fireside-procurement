@@ -208,7 +208,10 @@
   }
   .btn-del:hover { color: var(--danger); background: #fdf2f2; }
   .empty { text-align: center; padding: 40px; color: var(--muted); }
-  .notes-cell { font-size: 12px; color: var(--muted); max-width: 180px; }
+  .notes-cell { font-size: 12px; color: var(--muted); min-width: 320px; max-width: 360px; }
+  /* Narrow date/amount columns: headers wrap to two lines instead of forcing width */
+  th[data-k="added"], th[data-k="returns"], th[data-k="leadTime"], th[data-k="projected"],
+  th[data-k="delivery"], th[data-k="deposit"], th[data-k="total"] { white-space: normal; }
   .cat-tag { display: inline-block; font-size: 12px; background: #f1f3f5; color: var(--text); border-radius: 5px; padding: 2px 7px; margin: 1px 2px 1px 0; }
 
   /* Released date / updated label */
@@ -575,15 +578,15 @@
             <th class="sortable" data-k="category"  onclick="setSort('category')">Category<span class="sort-arrow"></span></th>
             <th class="sortable" data-k="vendor"    onclick="setSort('vendor')">Vendor<span class="sort-arrow"></span></th>
             <th class="sortable" data-k="contact"   onclick="setSort('contact')">Contact<span class="sort-arrow"></span></th>
-            <th class="sortable" data-k="added"     onclick="setSort('added')"     style="width:110px">Date Added<span class="sort-arrow"></span></th>
+            <th class="sortable" data-k="added"     onclick="setSort('added')"     style="width:90px">Date Added<span class="sort-arrow"></span></th>
             <th class="sortable" data-k="status"    onclick="setSort('status')"    style="width:110px">Status<span class="sort-arrow"></span></th>
-            <th class="sortable" data-k="returns"   onclick="setSort('returns')"   style="width:130px">Returns<span class="sort-arrow"></span></th>
-            <th class="sortable" data-k="leadTime"  onclick="setSort('leadTime')"  style="width:110px">Lead Time<span class="sort-arrow"></span></th>
-            <th class="sortable" data-k="projected" onclick="setSort('projected')" style="width:120px">Projected Delivery<span class="sort-arrow"></span></th>
-            <th class="sortable" data-k="delivery"  onclick="setSort('delivery')"  style="width:115px">Delivery Due<span class="sort-arrow"></span></th>
-            <th class="sortable right" data-k="deposit" onclick="setSort('deposit')" style="width:130px">Deposit Amount<span class="sort-arrow"></span></th>
-            <th class="sortable right" data-k="total"   onclick="setSort('total')"   style="width:130px">Full Amount<span class="sort-arrow"></span></th>
-            <th class="sortable" data-k="notes"     onclick="setSort('notes')"     style="width:160px">Notes<span class="sort-arrow"></span></th>
+            <th class="sortable" data-k="returns"   onclick="setSort('returns')"   style="width:100px">Returns<span class="sort-arrow"></span></th>
+            <th class="sortable" data-k="leadTime"  onclick="setSort('leadTime')"  style="width:80px">Lead Time<span class="sort-arrow"></span></th>
+            <th class="sortable" data-k="projected" onclick="setSort('projected')" style="width:95px">Projected Delivery<span class="sort-arrow"></span></th>
+            <th class="sortable" data-k="delivery"  onclick="setSort('delivery')"  style="width:90px">Delivery Due<span class="sort-arrow"></span></th>
+            <th class="sortable right" data-k="deposit" onclick="setSort('deposit')" style="width:100px">Deposit Amount<span class="sort-arrow"></span></th>
+            <th class="sortable right" data-k="total"   onclick="setSort('total')"   style="width:100px">Full Amount<span class="sort-arrow"></span></th>
+            <th class="sortable" data-k="notes"     onclick="setSort('notes')"     style="width:320px">Notes<span class="sort-arrow"></span></th>
             <th class="sortable" data-k="release"   onclick="setSort('release')"   style="width:160px">Release to Order<span class="sort-arrow"></span></th>
             <th style="width:36px"></th>
           </tr>
