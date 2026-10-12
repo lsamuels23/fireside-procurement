@@ -120,6 +120,10 @@
 
   /* TABLE */
   .table-wrap { overflow-x: auto; }
+  /* Mirror scrollbar above the table — only shown when the table overflows */
+  .table-scroll-top { overflow-x: auto; overflow-y: hidden; display: none; }
+  .table-scroll-top.show { display: block; }
+  .table-scroll-top > div { height: 1px; }
   table { width: 100%; border-collapse: collapse; min-width: 860px; }
   th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
   th {
@@ -561,7 +565,8 @@
   <!-- TABLE -->
   <div class="card">
     <h2 id="tableTitle">All Projects — 8 items</h2>
-    <div class="table-wrap">
+    <div class="table-scroll-top" id="tableScrollTop"><div></div></div>
+    <div class="table-wrap" id="tableWrap">
       <table>
         <thead>
           <tr>
@@ -570,6 +575,7 @@
             <th class="sortable" data-k="category"  onclick="setSort('category')">Category<span class="sort-arrow"></span></th>
             <th class="sortable" data-k="vendor"    onclick="setSort('vendor')">Vendor<span class="sort-arrow"></span></th>
             <th class="sortable" data-k="contact"   onclick="setSort('contact')">Contact<span class="sort-arrow"></span></th>
+            <th class="sortable" data-k="added"     onclick="setSort('added')"     style="width:110px">Date Added<span class="sort-arrow"></span></th>
             <th class="sortable" data-k="status"    onclick="setSort('status')"    style="width:110px">Status<span class="sort-arrow"></span></th>
             <th class="sortable" data-k="returns"   onclick="setSort('returns')"   style="width:130px">Returns<span class="sort-arrow"></span></th>
             <th class="sortable" data-k="leadTime"  onclick="setSort('leadTime')"  style="width:110px">Lead Time<span class="sort-arrow"></span></th>
@@ -2723,6 +2729,31 @@ function projectedFor(item){
   return ship || frozen || (live ? projectedDeliveryDate(item.leadTime) : null);
 }
 
+// When the item was added — older rows only carry it as an "added" history event.
+function addedOn(item){
+  if(item.addedDate) return item.addedDate;
+  const ev = (item.statusHistory || []).find(e => e.event === 'added');
+  return ev ? ev.at : null;
+}
+
+// Top scrollbar mirrors the table's horizontal scroll; hidden when nothing overflows.
+function syncTopScroll(){
+  const top = document.getElementById('tableScrollTop'), wrap = document.getElementById('tableWrap');
+  if(!top || !wrap) return;
+  top.firstElementChild.style.width = wrap.scrollWidth + 'px';
+  top.classList.toggle('show', wrap.scrollWidth > wrap.clientWidth + 1);
+  top.scrollLeft = wrap.scrollLeft;
+}
+(function(){
+  const top = document.getElementById('tableScrollTop'), wrap = document.getElementById('tableWrap');
+  // Equality guard stops the two scroll handlers from echoing each other.
+  const mirror = (from, to) => () => { if(to.scrollLeft !== from.scrollLeft) to.scrollLeft = from.scrollLeft; };
+  top.addEventListener('scroll', mirror(top, wrap));
+  wrap.addEventListener('scroll', mirror(wrap, top));
+  if(window.ResizeObserver){ const ro = new ResizeObserver(syncTopScroll); ro.observe(wrap); ro.observe(wrap.querySelector('table')); }
+  else window.addEventListener('resize', syncTopScroll);
+})();
+
 function sortValue(item, key){
   switch(key){
     case 'project':   return (item.unit || item.project || '').trim();
@@ -2731,6 +2762,7 @@ function sortValue(item, key){
     case 'vendor':    return (item.vendor || '').trim();
     case 'contact':   return (item.contact || '').trim();
     case 'notes':     return (item.notes || '').trim();
+    case 'added':     return addedOn(item);
     // Pipeline position, so Delivered never sorts next to Approved.
     case 'status':    { const i = STATUS_ORDER.indexOf(statusKey(item)); return i < 0 ? 0 : i; }
     // Return progression; items with no return state are blank and sink.
@@ -2944,6 +2976,7 @@ function render(){
       <td class="cat-cell">${item.category ? item.category.split(',').map(c=>c.trim()).filter(Boolean).map(c=>`<span class="cat-tag">${esc(c)}</span>`).join(' ') : '<span class="muted">—</span>'}${updatedLabel}</td>
       <td>${esc(item.vendor)||'<span class="muted">—</span>'}</td>
       <td>${esc(item.contact)||'<span class="muted">—</span>'}</td>
+      <td class="small">${addedOn(item) ? `<span title="${fmtDateTime(addedOn(item))}">${fmtDate(addedOn(item))}</span>` : '<span class="muted">—</span>'}</td>
       <td><span class="pill ${pc}">${esc(pl)}</span>${item.statusChangedDate ? `<span class="updated-label" title="${esc(statusHistoryTooltip(item))}">${fmtDateTime(item.statusChangedDate)}</span>` : ''}</td>
       <td>${returnCell}</td>
       <td class="small">${esc(item.leadTime)||'<span class="muted">—</span>'}</td>
@@ -2961,6 +2994,7 @@ function render(){
   }).join('');
 
   document.getElementById('emptyMsg').style.display = list.length ? 'none' : 'block';
+  syncTopScroll();
 
   const unitLabel = projectScopeLabel(fProjects);
   const count = list.length;
