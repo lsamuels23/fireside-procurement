@@ -119,23 +119,27 @@
   select:focus, input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
   /* TABLE */
-  .table-wrap { overflow-x: auto; }
+  /* The table scrolls inside its own box; fitTableHeight sizes it so the totals
+     banner stays on screen above it once the page is scrolled down. */
+  .table-wrap { overflow: auto; }
   /* Mirror scrollbar above the table — only shown when the table overflows */
   .table-scroll-top { overflow-x: auto; overflow-y: hidden; display: none; }
   .table-scroll-top.show { display: block; }
   .table-scroll-top > div { height: 1px; }
   table { width: 100%; border-collapse: collapse; min-width: 860px; }
-  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th, td { text-align: left; padding: 10px 7px; border-bottom: 1px solid var(--line); vertical-align: middle; }
   th {
     font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
     color: var(--muted); white-space: nowrap; background: #fafbfc;
-    position: sticky; top: 0;
   }
+  /* Header row stays at the top of the table box; the inset line is its bottom
+     edge (collapsed borders don't travel with sticky cells). */
+  th { position: sticky; top: 0; z-index: 2; box-shadow: inset 0 -1px 0 var(--line); }
   /* SORTABLE HEADERS — arrow is hidden until you hover the column
      (or it's the column currently sorted, so the state stays readable) */
   th.sortable { cursor: pointer; user-select: none; }
   th.sortable:hover { color: var(--text); background: #f2f4f7; }
-  th.sortable.right { text-align: right; }
+  th.sortable.right { text-align: left; }   /* headers stay left-justified like the rest */
   .sort-arrow {
     display: inline-block; width: 9px; margin-left: 4px;
     font-size: 9px; line-height: 1; opacity: 0; transition: opacity .12s;
@@ -145,6 +149,7 @@
   th.sortable.sorted .sort-arrow { opacity: 1; color: var(--accent); }
 
   tbody tr:hover { background: #fafbfd; }
+  #rows tr[data-id] { cursor: pointer; }
   tbody tr.released-row { background: inherit; }
   tbody tr.released-row:hover { background: inherit; }
   td.cat-cell { font-weight: 600; }
@@ -208,9 +213,13 @@
   }
   .btn-del:hover { color: var(--danger); background: #fdf2f2; }
   .empty { text-align: center; padding: 40px; color: var(--muted); }
-  .notes-cell { font-size: 12px; color: var(--muted); min-width: 320px; max-width: 360px; }
+  /* Dates stay on one line; the narrow Returns column lets its pills wrap instead */
+  .date-cell { white-space: nowrap; }
+  .item-cell { min-width: 140px; }
+  .returns-cell .pill { white-space: normal; text-align: center; }
+  .notes-cell { font-size: 12px; color: var(--muted); min-width: 194px; max-width: 219px; }
   /* Narrow date/amount columns: headers wrap to two lines instead of forcing width */
-  th[data-k="added"], th[data-k="returns"], th[data-k="leadTime"], th[data-k="projected"],
+  th[data-k="updated"], th[data-k="added"], th[data-k="returns"], th[data-k="leadTime"], th[data-k="projected"],
   th[data-k="delivery"], th[data-k="deposit"], th[data-k="total"] { white-space: normal; }
   .cat-tag { display: inline-block; font-size: 12px; background: #f1f3f5; color: var(--text); border-radius: 5px; padding: 2px 7px; margin: 1px 2px 1px 0; }
 
@@ -385,6 +394,7 @@
   @media print {
     header button, .btn-release, .btn-undo, .controls, .card:first-of-type { display: none !important; }
     body { background: #fff; }
+    .table-wrap { max-height: none !important; overflow: visible; }
   }
 </style>
 </head>
@@ -396,7 +406,7 @@
     <div class="sub">Release-to-order &amp; payment amounts</div>
   </div>
   <div class="spacer"></div>
-  <button onclick="exportPDF()" title="Print or export visible items as PDF">🖨 Print / PDF</button>
+  <button onclick="exportPDF()" title="Print or export visible items as PDF">🖨 Export / Print</button>
   <button onclick="saveAsFile()" title="Save all current data into a new copy of this file">💾 Save File</button>
   <button onclick="document.getElementById('importFile').click()" title="Restore from a JSON backup">⬆ Restore</button>
   <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(event)">
@@ -574,19 +584,20 @@
         <thead>
           <tr>
             <th class="sortable" data-k="project"   onclick="setSort('project')"   style="width:80px">Project<span class="sort-arrow"></span></th>
-            <th class="sortable" data-k="itemName"  onclick="setSort('itemName')">Item Name<span class="sort-arrow"></span></th>
+            <th class="sortable" data-k="itemName"  onclick="setSort('itemName')"  style="width:140px">Item Name<span class="sort-arrow"></span></th>
             <th class="sortable" data-k="category"  onclick="setSort('category')">Category<span class="sort-arrow"></span></th>
             <th class="sortable" data-k="vendor"    onclick="setSort('vendor')">Vendor<span class="sort-arrow"></span></th>
             <th class="sortable" data-k="contact"   onclick="setSort('contact')">Contact<span class="sort-arrow"></span></th>
+            <th class="sortable" data-k="updated"   onclick="setSort('updated')"   style="width:90px">Date Updated<span class="sort-arrow"></span></th>
             <th class="sortable" data-k="added"     onclick="setSort('added')"     style="width:90px">Date Added<span class="sort-arrow"></span></th>
             <th class="sortable" data-k="status"    onclick="setSort('status')"    style="width:110px">Status<span class="sort-arrow"></span></th>
-            <th class="sortable" data-k="returns"   onclick="setSort('returns')"   style="width:100px">Returns<span class="sort-arrow"></span></th>
+            <th class="sortable" data-k="returns"   onclick="setSort('returns')"   style="width:70px">Returns<span class="sort-arrow"></span></th>
             <th class="sortable" data-k="leadTime"  onclick="setSort('leadTime')"  style="width:80px">Lead Time<span class="sort-arrow"></span></th>
             <th class="sortable" data-k="projected" onclick="setSort('projected')" style="width:95px">Projected Delivery<span class="sort-arrow"></span></th>
             <th class="sortable" data-k="delivery"  onclick="setSort('delivery')"  style="width:90px">Delivery Due<span class="sort-arrow"></span></th>
             <th class="sortable right" data-k="deposit" onclick="setSort('deposit')" style="width:100px">Deposit Amount<span class="sort-arrow"></span></th>
             <th class="sortable right" data-k="total"   onclick="setSort('total')"   style="width:100px">Full Amount<span class="sort-arrow"></span></th>
-            <th class="sortable" data-k="notes"     onclick="setSort('notes')"     style="width:320px">Notes<span class="sort-arrow"></span></th>
+            <th class="sortable" data-k="notes"     onclick="setSort('notes')"     style="width:194px">Notes<span class="sort-arrow"></span></th>
             <th class="sortable" data-k="release"   onclick="setSort('release')"   style="width:160px">Release to Order<span class="sort-arrow"></span></th>
             <th style="width:36px"></th>
           </tr>
@@ -2713,7 +2724,41 @@ function statusHistoryTooltip(item){
 // Click a column header to sort: first click ascending, second descending,
 // third clears back to the underlying list order. Blank values always sink
 // to the bottom, whichever direction is active.
-let sortKey = null, sortDir = 1;
+// Default view: most recently updated first. A saved view (restoreView) replaces this.
+let sortKey = 'updated', sortDir = -1;
+
+// ── Remembered view ───────────────────────────────────────────────
+// Sort + filters are kept per browser, so each person comes back to the view
+// they last used. Only this device remembers it — nothing goes to Supabase.
+const VIEW_KEY = 'procTracker_view';
+const VIEW_SELECTS = { status:'filterStatus', returns:'filterReturn', vendor:'filterVendor',
+                       contact:'filterContact', category:'filterCategory' };
+
+function saveView(){
+  const v = { sortKey, sortDir, projects: pickedProjects(),
+              search: document.getElementById('filterSearch').value,
+              released: document.getElementById('filterReleased').checked };
+  for(const [k,id] of Object.entries(VIEW_SELECTS)) v[k] = document.getElementById(id).value;
+  try{ localStorage.setItem(VIEW_KEY, JSON.stringify(v)); }catch(e){}
+}
+
+function restoreView(){
+  let v;
+  try{ v = JSON.parse(localStorage.getItem(VIEW_KEY)); }catch(e){}
+  if(!v) return;
+  if('sortKey' in v){ sortKey = v.sortKey; sortDir = v.sortDir === -1 ? -1 : 1; }
+  (v.projects || []).forEach(p => projectFilter.add(p));
+  document.getElementById('filterSearch').value = v.search || '';
+  document.getElementById('filterReleased').checked = !!v.released;
+  for(const [k,id] of Object.entries(VIEW_SELECTS)){
+    const sel = document.getElementById(id), val = v[k];
+    if(val == null || val === '') continue;
+    // Vendor/contact/category options are built on first render — seed the saved
+    // one so it survives; render drops it if that value no longer exists.
+    if(![...sel.options].some(o => o.value === val)) sel.add(new Option(val, val));
+    sel.value = val;
+  }
+}
 
 // Status sorts along the real pipeline, not alphabetically. Pending / TBD
 // (no status yet) is the first stage, so it ranks ahead of Quoting.
@@ -2733,6 +2778,14 @@ function projectedFor(item){
 }
 
 // When the item was added — older rows only carry it as an "added" history event.
+// Latest change of any kind — edits, status moves, release/undo, return steps
+// don't all stamp updatedDate, so take the newest of every recorded date.
+function updatedOn(item){
+  const ds = [item.updatedDate, item.statusChangedDate, item.releasedDate,
+              item.returnChangedDate, addedOn(item)].filter(Boolean);
+  return ds.length ? ds.reduce((a,b) => new Date(b) > new Date(a) ? b : a) : null;
+}
+
 function addedOn(item){
   if(item.addedDate) return item.addedDate;
   const ev = (item.statusHistory || []).find(e => e.event === 'added');
@@ -2747,6 +2800,22 @@ function syncTopScroll(){
   top.classList.toggle('show', wrap.scrollWidth > wrap.clientWidth + 1);
   top.scrollLeft = wrap.scrollLeft;
 }
+
+// Cap the table box at whatever the screen has left after the totals banner,
+// the table title and whatever sits below the card — so scrolling the page all the
+// way down parks the totals banner at the top and the table fills the rest.
+function fitTableHeight(){
+  const wrap = document.getElementById('tableWrap'), totals = document.getElementById('totalsBar');
+  if(!wrap || !totals) return;
+  const card = wrap.closest('.card');
+  const gap = parseFloat(getComputedStyle(totals).marginBottom) || 0;
+  // Everything under the card (its margin, the page padding) — measured, not assumed.
+  const below = document.documentElement.scrollHeight - (card.getBoundingClientRect().bottom + window.scrollY);
+  const chrome = card.offsetHeight - wrap.offsetHeight;          // title + top scrollbar + borders
+  const h = window.innerHeight - totals.offsetHeight - gap - chrome - below;
+  wrap.style.maxHeight = Math.max(240, h) + 'px';
+}
+window.addEventListener('resize', fitTableHeight);
 (function(){
   const top = document.getElementById('tableScrollTop'), wrap = document.getElementById('tableWrap');
   // Equality guard stops the two scroll handlers from echoing each other.
@@ -2757,6 +2826,15 @@ function syncTopScroll(){
   else window.addEventListener('resize', syncTopScroll);
 })();
 
+// Clicking anywhere on a row opens its edit card — except on the row's own
+// buttons/links, or when the click ends a text selection.
+document.getElementById('rows').addEventListener('click', e => {
+  const tr = e.target.closest('tr[data-id]');
+  if(!tr || e.target.closest('button, a, input, select, textarea, label')) return;
+  if(String(window.getSelection())) return;
+  openEdit(tr.dataset.id);
+});
+
 function sortValue(item, key){
   switch(key){
     case 'project':   return (item.unit || item.project || '').trim();
@@ -2766,6 +2844,7 @@ function sortValue(item, key){
     case 'contact':   return (item.contact || '').trim();
     case 'notes':     return (item.notes || '').trim();
     case 'added':     return addedOn(item);
+    case 'updated':   return updatedOn(item);
     // Pipeline position, so Delivered never sorts next to Approved.
     case 'status':    { const i = STATUS_ORDER.indexOf(statusKey(item)); return i < 0 ? 0 : i; }
     // Return progression; items with no return state are blank and sink.
@@ -2900,6 +2979,7 @@ function render(){
   const { list, fProjects, fStatus, fVendor, fContact, fCat, fSearch, fReturn, fReleased } = getFilteredList();
   document.getElementById('filterReleasedLabel').classList.toggle('on', fReleased);
   updateSortIndicators();
+  saveView();
 
   const rows = document.getElementById('rows');
   rows.innerHTML = list.map(item=>{
@@ -2967,24 +3047,24 @@ function render(){
     // Returns — blank until someone sets a return state on the item
     const rk = returnKey(item);
     const returnCell = rk
-      ? `<span class="pill ${returnClass(rk)}">${esc(rk)}</span>${item.returnChangedDate ? `<span class="updated-label">${fmtDate(item.returnChangedDate)}</span>` : ''}`
+      // Table badge reads just "Return" for Need to Return; the full state shows on hover.
+      ? `<span class="pill ${returnClass(rk)}" title="${esc(rk)}">${rk === 'Need to Return' ? 'Return' : esc(rk)}</span>${item.returnChangedDate ? `<span class="updated-label">${fmtDate(item.returnChangedDate)}</span>` : ''}`
       : '<span class="muted">—</span>';
 
-    const updatedLabel = item.updatedDate
-      ? `<span class="updated-label">Updated ${fmtDate(item.updatedDate)}</span>` : '';
 
-    return `<tr class="${isReleased?'released-row':''}">
+    return `<tr class="${isReleased?'released-row':''}" data-id="${item.id}">
       <td>${projectLabel ? projectLabel.split(',').map(p=>p.trim()).filter(Boolean).map(p=>`<span class="unit-badge${p==='8B'?' b':''}">${esc(p)}</span>`).join(' ') : '<span class="muted">—</span>'}</td>
-      <td>${esc(item.itemName)||'<span class="muted">—</span>'}</td>
-      <td class="cat-cell">${item.category ? item.category.split(',').map(c=>c.trim()).filter(Boolean).map(c=>`<span class="cat-tag">${esc(c)}</span>`).join(' ') : '<span class="muted">—</span>'}${updatedLabel}</td>
+      <td class="item-cell">${esc(item.itemName)||'<span class="muted">—</span>'}</td>
+      <td class="cat-cell">${item.category ? item.category.split(',').map(c=>c.trim()).filter(Boolean).map(c=>`<span class="cat-tag">${esc(c)}</span>`).join(' ') : '<span class="muted">—</span>'}</td>
       <td>${esc(item.vendor)||'<span class="muted">—</span>'}</td>
       <td>${esc(item.contact)||'<span class="muted">—</span>'}</td>
-      <td class="small">${addedOn(item) ? `<span title="${fmtDateTime(addedOn(item))}">${fmtDate(addedOn(item))}</span>` : '<span class="muted">—</span>'}</td>
+      <td class="small date-cell">${updatedOn(item) ? `<span title="${fmtDateTime(updatedOn(item))}">${fmtDate(updatedOn(item))}</span>` : '<span class="muted">—</span>'}</td>
+      <td class="small date-cell">${addedOn(item) ? `<span title="${fmtDateTime(addedOn(item))}">${fmtDate(addedOn(item))}</span>` : '<span class="muted">—</span>'}</td>
       <td><span class="pill ${pc}">${esc(pl)}</span>${item.statusChangedDate ? `<span class="updated-label" title="${esc(statusHistoryTooltip(item))}">${fmtDateTime(item.statusChangedDate)}</span>` : ''}</td>
-      <td>${returnCell}</td>
+      <td class="returns-cell">${returnCell}</td>
       <td class="small">${esc(item.leadTime)||'<span class="muted">—</span>'}</td>
-      <td class="small">${projCell}</td>
-      <td class="small">${deliveryCell}</td>
+      <td class="small date-cell">${projCell}</td>
+      <td class="small date-cell">${deliveryCell}</td>
       <td class="right">${dep}</td>
       <td class="right">${tot}</td>
       <td class="notes-cell">${esc(item.notes)||''}</td>
@@ -2998,6 +3078,7 @@ function render(){
 
   document.getElementById('emptyMsg').style.display = list.length ? 'none' : 'block';
   syncTopScroll();
+  fitTableHeight();
 
   const unitLabel = projectScopeLabel(fProjects);
   const count = list.length;
@@ -3258,6 +3339,7 @@ document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeEdit(); });
 
 // ── Boot ──────────────────────────────────────────────────────────
 async function boot(){
+  restoreView();
   items = await cloudLoad();
   render();
   if(!sb){
