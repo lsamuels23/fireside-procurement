@@ -541,6 +541,14 @@
           </select>
         </div>
         <div class="field">
+          <label>On Hold</label>
+          <select id="filterHold" onchange="render()">
+            <option value="all">All items</option>
+            <option value="on">On hold</option>
+            <option value="off">Not on hold</option>
+          </select>
+        </div>
+        <div class="field">
           <label>Category</label>
           <select id="filterCategory" onchange="render()"><option value="">All categories</option></select>
         </div>
@@ -2415,6 +2423,7 @@ function clearFilters(){
   projectFilter.clear();
   document.getElementById('filterStatus').value  = 'all';
   document.getElementById('filterReturn').value  = 'all';
+  document.getElementById('filterHold').value    = 'all';
   document.getElementById('filterVendor').value  = '';
   document.getElementById('filterContact').value = '';
   document.getElementById('filterCategory').value = '';
@@ -2812,7 +2821,7 @@ let sortKey = 'updated', sortDir = -1;
 // Sort + filters are kept per browser, so each person comes back to the view
 // they last used. Only this device remembers it — nothing goes to Supabase.
 const VIEW_KEY = 'procTracker_view';
-const VIEW_SELECTS = { status:'filterStatus', returns:'filterReturn', vendor:'filterVendor',
+const VIEW_SELECTS = { status:'filterStatus', returns:'filterReturn', hold:'filterHold', vendor:'filterVendor',
                        contact:'filterContact', category:'filterCategory' };
 
 function saveView(){
@@ -2989,6 +2998,7 @@ function getFilteredList(){
   const fCat     = document.getElementById('filterCategory').value;
   const fSearch  = document.getElementById('filterSearch').value.toLowerCase().trim();
   const fReleased = document.getElementById('filterReleased').checked;
+  const fHold    = document.getElementById('filterHold').value;
   return {
     list: sortList(items.filter(item=>{
       const itemProjects = (item.unit||item.project||'').split(',').map(p=>p.trim());
@@ -3010,6 +3020,8 @@ function getFilteredList(){
       // i.e. still awaiting release. Distinct from the Released status, which is the
       // green "✓ Released" pill on items already released but not yet ordered.
       if(fReleased && !canRelease(item)) return false;
+      if(fHold === 'on'  && !item.onHold) return false;
+      if(fHold === 'off' &&  item.onHold) return false;
       if(fVendor && item.vendor !== fVendor) return false;
       if(fContact && item.contact !== fContact) return false;
       if(fCat && !(item.category||'').split(',').map(c=>c.trim()).includes(fCat)) return false;
@@ -3019,7 +3031,7 @@ function getFilteredList(){
       }
       return true;
     })),
-    fProjects, fStatus, fVendor, fContact, fCat, fSearch, fReturn, fReleased
+    fProjects, fStatus, fVendor, fContact, fCat, fSearch, fReturn, fReleased, fHold
   };
 }
 
@@ -3060,7 +3072,7 @@ function render(){
     categories.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
   fk.value = ck;
 
-  const { list, fProjects, fStatus, fVendor, fContact, fCat, fSearch, fReturn, fReleased } = getFilteredList();
+  const { list, fProjects, fStatus, fVendor, fContact, fCat, fSearch, fReturn, fReleased, fHold } = getFilteredList();
   document.getElementById('filterReleasedLabel').classList.toggle('on', fReleased);
   updateSortIndicators();
   saveView();
@@ -3186,7 +3198,7 @@ function render(){
   const depsOutCount    = list.filter(x => !['Ordered','Shipped','In Transit','Delivered','Installed'].includes(x.status) && x.depositAmt != null).length;
   const outstanding     = totalValue - totalPaid;
   const orderedCount    = list.filter(x => ['Ordered','Shipped','In Transit','Delivered','Installed'].includes(x.status)).length;
-  const isFiltered      = fProjects.length || fStatus!=='all' || fVendor || fContact || fCat || fSearch || (fReturn && fReturn!=='all') || fReleased;
+  const isFiltered      = fProjects.length || fStatus!=='all' || fVendor || fContact || fCat || fSearch || (fReturn && fReturn!=='all') || fReleased || fHold!=='all';
   const scope = isFiltered ? 'Filtered items' : 'All items';
 
   document.getElementById('totalsBar').innerHTML = `
@@ -3220,7 +3232,7 @@ function render(){
 // ── Export / Print PDF ────────────────────────────────────────────
 function exportPDF(){
   // Use the same shared filter as render() — guaranteed to match what's on screen
-  const { list, fProjects, fStatus, fVendor, fContact, fCat, fSearch, fReturn, fReleased } = getFilteredList();
+  const { list, fProjects, fStatus, fVendor, fContact, fCat, fSearch, fReturn, fReleased, fHold } = getFilteredList();
 
   // Totals
   const contractVal    = x => x.totalAmt != null ? x.totalAmt : (x.depositAmt != null ? x.depositAmt : 0);
@@ -3230,10 +3242,11 @@ function exportPDF(){
   const depsOutstanding= depsOut.reduce((s,x) => s + (x.depositAmt||0), 0);
   const outstanding    = totalValue - totalPaid;
   const orderedCount   = list.filter(x => ['Ordered','Shipped','In Transit','Delivered','Installed'].includes(x.status)).length;
-  const isFiltered     = fProjects.length || fStatus!=='all' || fVendor || fContact || fCat || fSearch || (fReturn && fReturn!=='all') || fReleased;
+  const isFiltered     = fProjects.length || fStatus!=='all' || fVendor || fContact || fCat || fSearch || (fReturn && fReturn!=='all') || fReleased || fHold!=='all';
   const statusLabel    = fStatus && fStatus !== 'all' ? ` · ${fStatus}` : '';
   const releasedLabel  = fReleased ? ' · Awaiting release' : '';
-  const unitLabel      = projectScopeLabel(fProjects) + statusLabel + releasedLabel;
+  const holdLabel      = fHold === 'on' ? ' · On hold' : fHold === 'off' ? ' · Not on hold' : '';
+  const unitLabel      = projectScopeLabel(fProjects) + statusLabel + releasedLabel + holdLabel;
   const printDate      = new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
 
   // Status color helper
