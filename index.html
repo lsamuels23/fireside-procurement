@@ -2814,18 +2814,19 @@ function statusHistoryTooltip(item){
 // Click a column header to sort: first click ascending, second descending,
 // third clears back to the underlying list order. Blank values always sink
 // to the bottom, whichever direction is active.
-// Default view: most recently updated first. A saved view (restoreView) replaces this.
+// Default view: most recently updated first. Every page load starts here —
+// the saved view (restoreView) brings back filters only, never the sort.
 let sortKey = 'updated', sortDir = -1;
 
 // ── Remembered view ───────────────────────────────────────────────
-// Sort + filters are kept per browser, so each person comes back to the view
-// they last used. Only this device remembers it — nothing goes to Supabase.
+// Filters are kept per browser, so each person comes back to the view they
+// last used. Only this device remembers it — nothing goes to Supabase.
 const VIEW_KEY = 'procTracker_view';
 const VIEW_SELECTS = { status:'filterStatus', returns:'filterReturn', hold:'filterHold', vendor:'filterVendor',
                        contact:'filterContact', category:'filterCategory' };
 
 function saveView(){
-  const v = { sortKey, sortDir, projects: pickedProjects(),
+  const v = { projects: pickedProjects(),
               search: document.getElementById('filterSearch').value,
               released: document.getElementById('filterReleased').checked };
   for(const [k,id] of Object.entries(VIEW_SELECTS)) v[k] = document.getElementById(id).value;
@@ -2836,7 +2837,6 @@ function restoreView(){
   let v;
   try{ v = JSON.parse(localStorage.getItem(VIEW_KEY)); }catch(e){}
   if(!v) return;
-  if('sortKey' in v){ sortKey = v.sortKey; sortDir = v.sortDir === -1 ? -1 : 1; }
   (v.projects || []).forEach(p => projectFilter.add(p));
   document.getElementById('filterSearch').value = v.search || '';
   document.getElementById('filterReleased').checked = !!v.released;
