@@ -550,7 +550,15 @@
         </div>
         <div class="field">
           <label>Category</label>
-          <select id="filterCategory" onchange="render()"><option value="">All categories</option></select>
+          <div class="multi" id="categoryFilterWrap">
+            <button type="button" class="multi-toggle" id="categoryFilterBtn"
+                    aria-haspopup="true" aria-expanded="false"
+                    title="Pick any mix of categories to show"
+                    onclick="toggleCategoryMenu(event)">
+              <span class="multi-label" id="categoryFilterLabel">All categories</span><span class="multi-caret">▾</span>
+            </button>
+            <div class="multi-menu" id="categoryFilterMenu" hidden></div>
+          </div>
         </div>
         <div class="field">
           <label>Vendor</label>
@@ -2426,7 +2434,7 @@ function clearFilters(){
   document.getElementById('filterHold').value    = 'all';
   document.getElementById('filterVendor').value  = '';
   document.getElementById('filterContact').value = '';
-  document.getElementById('filterCategory').value = '';
+  categoryFilter.clear();
   document.getElementById('filterSearch').value  = '';
   document.getElementById('filterReleased').checked = false;
   render();
@@ -2483,6 +2491,7 @@ function pickAllProjects(){ projectFilter.clear(); render(); }
 function toggleProjectMenu(ev){
   ev.stopPropagation();
   const menu = document.getElementById('projectFilterMenu');
+  closeCategoryMenu();
   const show = menu.hidden;
   menu.hidden = !show;
   document.getElementById('projectFilterBtn').setAttribute('aria-expanded', String(show));
@@ -2493,9 +2502,64 @@ function closeProjectMenu(){
   menu.hidden = true;
   document.getElementById('projectFilterBtn').setAttribute('aria-expanded', 'false');
 }
-// the menu stays open while you pick; a click outside or Esc closes it
-document.addEventListener('click', e=>{ if(!e.target.closest('#projectFilterWrap')) closeProjectMenu(); });
-document.addEventListener('keydown', e=>{ if(e.key === 'Escape') closeProjectMenu(); });
+// ── Category filter (multi-select) ────────────────────────────────
+// Same behaviour as the project filter: empty means all, several is an OR.
+const categoryFilter = new Set();
+let allCategories = [];
+
+function pickedCategories(){ return [...categoryFilter].sort(); }
+
+function categoryFilterText(){
+  const picked = pickedCategories();
+  if(!picked.length || picked.length === allCategories.length) return 'All categories';
+  if(picked.length <= 2) return picked.join(', ');
+  return picked.length + ' categories';
+}
+
+function buildCategoryMenu(categories){
+  allCategories = categories;
+  categoryFilter.forEach(c=>{ if(!categories.includes(c)) categoryFilter.delete(c); });
+
+  const item = (on, label, call) =>
+    `<button type="button" class="multi-item ${on?'on':''}" onclick="event.stopPropagation();${call}">` +
+    `<span class="multi-dot">●</span>${label}</button>`;
+  document.getElementById('categoryFilterMenu').innerHTML =
+    item(!categoryFilter.size, 'All categories', 'pickAllCategories()') +
+    `<div class="multi-sep"></div>` +
+    (categories.length
+      ? categories.map(v=>item(categoryFilter.has(v), esc(v), `toggleCategoryFilter(${esc(JSON.stringify(v))})`)).join('')
+      : `<div class="multi-empty">No categories yet</div>`);
+  document.getElementById('categoryFilterLabel').textContent = categoryFilterText();
+}
+
+function toggleCategoryFilter(c){
+  if(categoryFilter.has(c)) categoryFilter.delete(c); else categoryFilter.add(c);
+  if(categoryFilter.size === allCategories.length) categoryFilter.clear();   // every category == All
+  render();
+}
+function pickAllCategories(){ categoryFilter.clear(); render(); }
+
+function toggleCategoryMenu(ev){
+  ev.stopPropagation();
+  closeProjectMenu();
+  const menu = document.getElementById('categoryFilterMenu');
+  const show = menu.hidden;
+  menu.hidden = !show;
+  document.getElementById('categoryFilterBtn').setAttribute('aria-expanded', String(show));
+}
+function closeCategoryMenu(){
+  const menu = document.getElementById('categoryFilterMenu');
+  if(menu.hidden) return;
+  menu.hidden = true;
+  document.getElementById('categoryFilterBtn').setAttribute('aria-expanded', 'false');
+}
+
+// the menus stay open while you pick; a click outside or Esc closes them
+document.addEventListener('click', e=>{
+  if(!e.target.closest('#projectFilterWrap')) closeProjectMenu();
+  if(!e.target.closest('#categoryFilterWrap')) closeCategoryMenu();
+});
+document.addEventListener('keydown', e=>{ if(e.key === 'Escape'){ closeProjectMenu(); closeCategoryMenu(); } });
 
 // ── Amount parsing (handles $1,234.56 / 1234.56 / 1234 etc.) ─────
 function parseAmt(s){
@@ -2823,10 +2887,10 @@ let sortKey = 'updated', sortDir = -1;
 // last used. Only this device remembers it — nothing goes to Supabase.
 const VIEW_KEY = 'procTracker_view';
 const VIEW_SELECTS = { status:'filterStatus', returns:'filterReturn', hold:'filterHold', vendor:'filterVendor',
-                       contact:'filterContact', category:'filterCategory' };
+                       contact:'filterContact' };
 
 function saveView(){
-  const v = { projects: pickedProjects(),
+  const v = { projects: pickedProjects(), categories: pickedCategories(),
               search: document.getElementById('filterSearch').value,
               released: document.getElementById('filterReleased').checked };
   for(const [k,id] of Object.entries(VIEW_SELECTS)) v[k] = document.getElementById(id).value;
@@ -2838,6 +2902,8 @@ function restoreView(){
   try{ v = JSON.parse(localStorage.getItem(VIEW_KEY)); }catch(e){}
   if(!v) return;
   (v.projects || []).forEach(p => projectFilter.add(p));
+  // older saved views held a single category string
+  (v.categories || (v.category ? [v.category] : [])).forEach(c => categoryFilter.add(c));
   document.getElementById('filterSearch').value = v.search || '';
   document.getElementById('filterReleased').checked = !!v.released;
   for(const [k,id] of Object.entries(VIEW_SELECTS)){
@@ -2995,7 +3061,7 @@ function getFilteredList(){
   const fReturn  = document.getElementById('filterReturn').value;
   const fVendor  = document.getElementById('filterVendor').value;
   const fContact = document.getElementById('filterContact').value;
-  const fCat     = document.getElementById('filterCategory').value;
+  const fCat     = pickedCategories();
   const fSearch  = document.getElementById('filterSearch').value.toLowerCase().trim();
   const fReleased = document.getElementById('filterReleased').checked;
   const fHold    = document.getElementById('filterHold').value;
@@ -3024,7 +3090,7 @@ function getFilteredList(){
       if(fHold === 'off' &&  item.onHold) return false;
       if(fVendor && item.vendor !== fVendor) return false;
       if(fContact && item.contact !== fContact) return false;
-      if(fCat && !(item.category||'').split(',').map(c=>c.trim()).includes(fCat)) return false;
+      if(fCat.length && !(item.category||'').split(',').map(c=>c.trim()).some(c=>fCat.includes(c))) return false;
       if(fSearch){
         const hay = [item.unit,item.project,item.itemName,item.category,item.vendor,item.contact,item.notes].filter(Boolean).join(' ').toLowerCase();
         if(!hay.includes(fSearch)) return false;
@@ -3065,12 +3131,8 @@ function render(){
     contacts.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
   fc.value = cc;
 
-  // Populate category filter dropdown
-  const fk = document.getElementById('filterCategory');
-  const ck = fk.value;
-  fk.innerHTML = '<option value="">All categories</option>' +
-    categories.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
-  fk.value = ck;
+  // Populate the category multi-pick menu
+  buildCategoryMenu(categories);
 
   const { list, fProjects, fStatus, fVendor, fContact, fCat, fSearch, fReturn, fReleased, fHold } = getFilteredList();
   document.getElementById('filterReleasedLabel').classList.toggle('on', fReleased);
@@ -3198,7 +3260,7 @@ function render(){
   const depsOutCount    = list.filter(x => !['Ordered','Shipped','In Transit','Delivered','Installed'].includes(x.status) && x.depositAmt != null).length;
   const outstanding     = totalValue - totalPaid;
   const orderedCount    = list.filter(x => ['Ordered','Shipped','In Transit','Delivered','Installed'].includes(x.status)).length;
-  const isFiltered      = fProjects.length || fStatus!=='all' || fVendor || fContact || fCat || fSearch || (fReturn && fReturn!=='all') || fReleased || fHold!=='all';
+  const isFiltered      = fProjects.length || fStatus!=='all' || fVendor || fContact || fCat.length || fSearch || (fReturn && fReturn!=='all') || fReleased || fHold!=='all';
   const scope = isFiltered ? 'Filtered items' : 'All items';
 
   document.getElementById('totalsBar').innerHTML = `
@@ -3242,7 +3304,7 @@ function exportPDF(){
   const depsOutstanding= depsOut.reduce((s,x) => s + (x.depositAmt||0), 0);
   const outstanding    = totalValue - totalPaid;
   const orderedCount   = list.filter(x => ['Ordered','Shipped','In Transit','Delivered','Installed'].includes(x.status)).length;
-  const isFiltered     = fProjects.length || fStatus!=='all' || fVendor || fContact || fCat || fSearch || (fReturn && fReturn!=='all') || fReleased || fHold!=='all';
+  const isFiltered     = fProjects.length || fStatus!=='all' || fVendor || fContact || fCat.length || fSearch || (fReturn && fReturn!=='all') || fReleased || fHold!=='all';
   const statusLabel    = fStatus && fStatus !== 'all' ? ` · ${fStatus}` : '';
   const releasedLabel  = fReleased ? ' · Awaiting release' : '';
   const holdLabel      = fHold === 'on' ? ' · On hold' : fHold === 'off' ? ' · Not on hold' : '';
