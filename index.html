@@ -226,10 +226,10 @@
   }
   .btn-del:hover { color: var(--danger); background: #fdf2f2; }
   .empty { text-align: center; padding: 40px; color: var(--muted); }
-  /* Dates stay on one line; the narrow Returns column lets its pills wrap instead */
+  /* Dates and Returns pills stay on one line */
   .date-cell { white-space: nowrap; }
   .item-cell { min-width: 140px; }
-  .returns-cell .pill { white-space: normal; text-align: center; }
+  .returns-cell .pill { white-space: nowrap; text-align: center; }
   .notes-cell { font-size: 12px; color: var(--muted); min-width: 194px; max-width: 219px; }
   /* Narrow date/amount columns: headers wrap to two lines instead of forcing width */
   th[data-k="updated"], th[data-k="added"], th[data-k="statusDate"], th[data-k="onHold"], th[data-k="returns"], th[data-k="leadTime"], th[data-k="projected"], th[data-k="expected"],
@@ -3146,7 +3146,7 @@ function render(){
     const rk = returnKey(item);
     const returnCell = rk
       // Table badge reads just "Return" for Need to Return; the full state shows on hover.
-      ? `<span class="pill ${returnClass(rk)}" title="${esc(rk)}">${rk === 'Need to Return' ? 'Return' : esc(rk)}</span>${item.returnChangedDate ? `<span class="updated-label">${fmtDate(item.returnChangedDate)}</span>` : ''}`
+      ? `<span class="pill ${returnClass(rk)}" title="${esc(rk)}">${esc(rk)}</span>${item.returnChangedDate ? `<span class="updated-label">${fmtDate(item.returnChangedDate)}</span>` : ''}`
       : '<span class="muted">—</span>';
 
 
