@@ -360,6 +360,16 @@
   .hist-row input[type="datetime-local"]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
   .hist-row .hist-fixed { flex: 1; font-size: 12px; color: var(--muted); font-style: italic; }
   .hist-empty { font-size: 12px; color: var(--muted); }
+  /* ACTIVITY LOG */
+  .act-list { max-height: 220px; overflow-y: auto; border: 1px solid var(--line); border-radius: 7px; padding: 4px 12px; }
+  .act-list .hist-empty { padding: 6px 0; }
+  .act-entry { padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .act-entry:last-child { border-bottom: none; }
+  .act-when { font-size: 11px; font-weight: 700; color: var(--muted); margin-bottom: 3px; }
+  .act-changes { margin: 0; padding-left: 16px; font-size: 12px; color: var(--text); }
+  .act-changes li { margin: 1px 0; word-break: break-word; }
+  .act-blank { color: var(--muted); font-style: italic; }
+  .act-src { font-weight: 400; font-style: italic; }
   .ship-hint { font-size: 12px; color: var(--muted); margin-top: 6px; min-height: 15px; }
   .ship-hint b { color: var(--ink, inherit); font-weight: 700; }
   .modal-footer {
@@ -922,6 +932,10 @@ Quote Approved: Aug 7, 2026 12:47 PM">Aug 7, 2026 12:47 PM</span></td>
         <div class="modal-field full">
           <label>Expected Delivery <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)">— manual entry (e.g. vendor-confirmed); shown in its own column beside the calculated projected delivery</span></label>
           <input type="date" id="e-expdelivery">
+        </div>
+        <div class="modal-field full">
+          <label>Activity <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted)">— every saved change, newest first</span></label>
+          <div id="eActivityList" class="act-list"></div>
         </div>
       </div>
     </div>
@@ -2328,6 +2342,7 @@ function openEdit(id){
   document.getElementById('eUpdatedLabel').textContent = lbl;
 
   renderHistoryEditor(item);
+  renderActivityLog(item);
   updateShipHint();
 
   document.getElementById('editModal').classList.add('open');
@@ -2344,6 +2359,8 @@ function saveEdit(){
   const prevReturn= returnKey(item);
   const prevHold  = !!item.onHold;
   const prevOrderedDate = item.orderedDate || null;
+  const before    = activitySnapshot(item);
+  const prevHist  = Array.isArray(item.statusHistory) ? item.statusHistory.map(h=>({...h})) : [];
 
   item.unit      = project;
   item.project   = project;
@@ -2371,6 +2388,7 @@ function saveEdit(){
   }
   // 1) Apply any date overrides from the Status History list (added date stays fixed)
   collectHistoryFromModal(item);
+  const histChanges = historyDateChanges(prevHist, item.statusHistory);
   // 2) If the Status dropdown itself changed, log a new stamped event
   stampStatusChange(item, prevKey);
   //    Same for the Returns dropdown — it gets its own dated history entry
@@ -2387,6 +2405,7 @@ function saveEdit(){
     computeOrderedProjection(item);
   }
   item.updatedDate  = new Date().toISOString();
+  logActivity(item, [...diffActivity(before, activitySnapshot(item)), ...histChanges], item.updatedDate);
 
   save();
   closeEdit();
@@ -2413,6 +2432,7 @@ function release(id){
   item.status = item.status || 'Released';
   item.pendingReview = false;
   stampStatusChange(item, prevKey);
+  logActivity(item, [{ field: 'Released to order' }], item.releasedDate);
   save(); render();
 }
 function undoRelease(id){
@@ -2423,6 +2443,7 @@ function undoRelease(id){
   item.releasedDate = null;
   // restore status if it was blank before
   stampStatusChange(item, prevKey);
+  logActivity(item, [{ field: 'Release to order undone' }]);
   save(); render();
 }
 
@@ -2722,6 +2743,90 @@ function stampStatusChange(item, prevKey){
 function logEvent(item, entry){
   if(!Array.isArray(item.statusHistory)) item.statusHistory = [];
   item.statusHistory.push(entry);
+}
+
+// ── Activity log ──────────────────────────────────────────────────
+// Every save records WHAT changed (field, old → new) and WHEN, in
+// item.activityLog: [{ at, changes:[{field, from, to}] }]. Append-only and
+// separate from statusHistory, whose dates the user can override.
+const yesNo = v => v ? 'Yes' : 'No';
+const ACTIVITY_FIELDS = [
+  ['Project',            i => i.unit || i.project || ''],
+  ['Item Name',          i => i.itemName || ''],
+  ['Category',           i => i.category || ''],
+  ['Vendor',             i => i.vendor || ''],
+  ['Contact',            i => i.contact || ''],
+  ['Status',             i => i.status || ''],
+  ['Returns',            i => i.returnStatus || ''],
+  ['On Hold',            i => yesNo(i.onHold)],
+  ['Lead Time',          i => i.leadTime || ''],
+  ['Deposit Amount',     i => fmt(i.depositAmt)],
+  ['Full Amount',        i => fmt(i.totalAmt)],
+  ['Need Delivery By',   i => fmtDate(i.deliveryDate)],
+  ['Expected Ship Date', i => fmtDate(i.expectedShipDate)],
+  ['Expected Delivery',  i => fmtDate(i.expectedDelivery)],
+  ['Notes',              i => i.notes || ''],
+  ['Release to Order button', i => yesNo(i.pendingReview !== false)],
+];
+function activitySnapshot(item){
+  return ACTIVITY_FIELDS.map(([, get]) => get(item));
+}
+function diffActivity(before, after){
+  const out = [];
+  ACTIVITY_FIELDS.forEach(([field], k)=>{
+    if(before[k] !== after[k]) out.push({ field, from: before[k], to: after[k] });
+  });
+  return out;
+}
+// Status History date overrides made in the modal, as activity changes.
+function historyDateChanges(prev, next){
+  const label = h => h.event === 'return' ? `Return: ${h.to}` : h.to;
+  const out = [];
+  const used = new Set();
+  prev.forEach(p=>{
+    if(p.event === 'added') return;
+    const k = (next || []).findIndex((n, idx)=> !used.has(idx) && n.event === p.event && n.to === p.to && n.from === p.from);
+    if(k < 0){ out.push({ field: `"${label(p)}" history entry`, from: fmtDateTime(p.at), to: 'removed' }); return; }
+    used.add(k);
+    if(next[k].at !== p.at) out.push({ field: `"${label(p)}" date`, from: fmtDateTime(p.at), to: fmtDateTime(next[k].at) });
+  });
+  return out;
+}
+function logActivity(item, changes, at){
+  if(!changes || !changes.length) return;
+  if(!Array.isArray(item.activityLog)) item.activityLog = [];
+  item.activityLog.push({ at: at || new Date().toISOString(), changes });
+}
+function renderActivityLog(item){
+  const box = document.getElementById('eActivityList');
+  const log = Array.isArray(item.activityLog) ? item.activityLog : [];
+  // Before field-level logging existed, only status / returns / hold changes were
+  // recorded (in statusHistory). Show those too, up to where the activity log
+  // starts — after that the log already carries the same changes.
+  const cutoff = log.length ? log[0].at : null;
+  const past = (Array.isArray(item.statusHistory) ? item.statusHistory : [])
+    .filter(h => h.at && (!cutoff || h.at < cutoff))
+    .map(h => ({ at: h.at, past: true, changes: [
+      h.event === 'added'  ? { field: h.to && h.to !== '—' ? `Item added as ${h.to}` : 'Item added' }
+    : h.event === 'return' ? { field: 'Returns', from: h.from === '—' ? '' : h.from, to: h.to === '—' ? '' : h.to }
+    : h.event === 'hold'   ? { field: 'On Hold', from: h.to === 'On Hold' ? 'No' : 'Yes', to: h.to === 'On Hold' ? 'Yes' : 'No' }
+    :                        { field: 'Status', from: h.from === '—' ? '' : h.from, to: h.to === '—' ? '' : h.to }
+    ]}));
+  const all = [...past, ...log].sort((a,b)=> a.at < b.at ? -1 : a.at > b.at ? 1 : 0);
+  if(!all.length){
+    box.innerHTML = '<div class="hist-empty">No activity recorded yet.</div>';
+    return;
+  }
+  const val = v => v === '' || v == null ? '<span class="act-blank">blank</span>' : esc(v);
+  box.innerHTML = all.reverse().map(e => `
+    <div class="act-entry">
+      <div class="act-when">${fmtDateTime(e.at)}${e.past ? ' <span class="act-src">· from status history</span>' : ''}</div>
+      <ul class="act-changes">${e.changes.map(c =>
+        ('from' in c || 'to' in c)
+          ? `<li><b>${esc(c.field)}:</b> ${val(c.from)} → ${val(c.to)}</li>`
+          : `<li><b>${esc(c.field)}</b></li>`
+      ).join('')}</ul>
+    </div>`).join('');
 }
 // When an item becomes Ordered, freeze its projected delivery to
 // (order date + lead time). Captured once and never recomputed, so it
